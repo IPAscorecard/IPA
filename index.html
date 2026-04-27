@@ -2294,6 +2294,47 @@
     color: #5DCAA5;
     border-color: rgba(29,158,117,0.4);
   }
+  .research-cal-wrap {
+    position: relative;
+    display: inline-block;
+  }
+  .research-cal-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    background: var(--surface2);
+    border: 1px solid var(--border-hover);
+    border-radius: 7px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    padding: 4px;
+    min-width: 180px;
+    z-index: 1000;
+    display: none;
+  }
+  .research-cal-menu.open { display: block; }
+  .research-cal-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 7px 10px;
+    background: transparent;
+    border: none;
+    border-radius: 5px;
+    color: var(--text);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+    white-space: nowrap;
+    transition: background 0.1s;
+  }
+  .research-cal-menu-item:hover { background: var(--accent-light); }
+  .research-cal-menu-item .cal-item-sub {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-left: auto;
+  }
   .research-expand-btn {
     width: 34px;
     height: 34px;
@@ -6761,7 +6802,16 @@
     var srchBtn = document.getElementById('research-search-btn');
     if (srchBtn) { srchBtn.style.pointerEvents = 'none'; srchBtn.style.opacity = '0.35'; }
     var lbBtn = document.getElementById('lightbulb-btn');
-    if (lbBtn) { lbBtn.style.pointerEvents = 'none'; lbBtn.style.opacity = '0.5'; }
+    if (lbBtn) {
+      // Keep the lightbulb clickable when research is ready, so the user can
+      // review the score card / research data after saving. Only dim it when
+      // no research is loaded (nothing to review).
+      if (lbBtn.classList.contains('lit')) {
+        lbBtn.style.pointerEvents = ''; lbBtn.style.opacity = '';
+      } else {
+        lbBtn.style.pointerEvents = 'none'; lbBtn.style.opacity = '0.5';
+      }
+    }
     document.querySelectorAll('.clear-tile-btn').forEach(function(b) {
       b.style.pointerEvents = 'none'; b.style.opacity = '0.35';
     });
@@ -9015,6 +9065,7 @@
       _researchData.blurb          = String(rd.blurb          || '');
       _researchData.revenue        = String(rd.revenue        || '');
       _researchData.foundedYear    = String(rd.foundedYear    || '').replace(/\D/g,'').slice(0,4);
+      _researchData.companyPhone   = String(rd.companyPhone   || '');
       _researchData.socialMedia    = (rd.socialMedia && typeof rd.socialMedia === 'object') ? rd.socialMedia : {};
       _researchData.recentNews     = Array.isArray(rd.recentNews)   ? rd.recentNews.filter(function(n){ return n && n.headline; }) : [];
       _researchData.eventsSite     = Array.isArray(rd.eventsSite)   ? rd.eventsSite.filter(function(e){ return e && e.title; }).map(function(e){ e.recurring=!!e.recurring; return e; }) : [];
@@ -9109,6 +9160,7 @@
       _researchData.employees      = String(rd.employees || '');
       _researchData.revenue        = String(rd.revenue || '');
       _researchData.foundedYear    = String(rd.foundedYear || '');
+      _researchData.companyPhone   = String(rd.companyPhone || '');
       _researchData.eventsSite     = Array.isArray(rd.eventsSite)  ? rd.eventsSite  : [];
       _researchData.eventsWeb      = Array.isArray(rd.eventsWeb)   ? rd.eventsWeb   : [];
       _researchData.observances    = Array.isArray(rd.observances) ? rd.observances : [];
@@ -9165,6 +9217,7 @@
       _researchData.blurb          = String(_rdRestore.blurb || '');
       _researchData.revenue        = String(_rdRestore.revenue || '');
       _researchData.foundedYear    = String(_rdRestore.foundedYear || '');
+      _researchData.companyPhone   = String(_rdRestore.companyPhone || '');
       _researchData.socialMedia    = (_rdRestore.socialMedia && typeof _rdRestore.socialMedia === 'object') ? _rdRestore.socialMedia : {};
       _researchData.recentNews     = Array.isArray(_rdRestore.recentNews)   ? _rdRestore.recentNews   : [];
       _researchData.eventsSite     = Array.isArray(_rdRestore.eventsSite)   ? _rdRestore.eventsSite   : [];
@@ -10731,7 +10784,7 @@
       ivState:'none', ivYourTier:'', ivYourScore:0, ivAiTier:'', ivAiScore:0,
       eventsSite:[], eventsWeb:[], observances:[], emailResearchBlock:'',
       companyLinkedIn:'', contactLinkedIn:'', revenue:'', recentNews:[], socialMedia:{},
-      corporateAddress:null,
+      corporateAddress:null, companyPhone:'',
       decisionMakers:null, contactPerson:null, keyPeople:[],
       salesHooks:[], searchCostUSD:0, searchDuration:null, tradeShows:[],
       competitors:[], attackPlan:'', attackPlans:{}, attackPlanActive:'',
@@ -11793,6 +11846,21 @@
       str = str.replace(/\\u003c[^"]*\\u003e/g, '');
       return str.trim();
     }
+    // Normalize a phone number string to (XXX) XXX-XXXX format.
+    // Accepts US/CA-style 10-digit numbers; returns the formatted string,
+    // or the original input if it's not a clean 10/11-digit US number.
+    function _formatPhone(s) {
+      if (!s) return '';
+      var str = _stripTags(String(s)).trim();
+      var digits = str.replace(/\D/g, '');
+      // Strip leading country code 1 if present
+      if (digits.length === 11 && digits.charAt(0) === '1') digits = digits.slice(1);
+      if (digits.length === 10) {
+        return '(' + digits.slice(0,3) + ') ' + digits.slice(3,6) + '-' + digits.slice(6);
+      }
+      // Non-standard length — return cleaned version (international, extensions, etc.)
+      return str;
+    }
     function _cleanUrl(s) {
       // Extract first valid URL only — prevents concatenation bugs
       if (!s) return '';
@@ -12158,10 +12226,11 @@
     var p2 = [
       "Research this company for QLP (promotional products). Return ONLY valid JSON, no markdown.",
       "Company: " + company + " | Domain: " + searchDomain + " | Today: " + todayStr,
-      "Use MAX 3 searches: (1) Search '" + searchDomain + " contact address headquarters' for: employees (number only), revenue, founded year, industry, 1-sentence blurb, recent news, and CORPORATE ADDRESS (check contact page, about page, or footer for street address including city, state, zip). (2) Search for industry observances/awareness months for this company's industry. (3) Search '" + company + " facebook instagram twitter tiktok youtube' for social media profile URLs.",
+      "Use MAX 3 searches: (1) Search '" + searchDomain + " contact address headquarters' for: employees (number only), revenue, founded year, industry, 1-sentence blurb, recent news, MAIN COMPANY PHONE NUMBER (the switchboard / headquarters number from contact page or footer), and CORPORATE ADDRESS (check contact page, about page, or footer for street address including city, state, zip). (2) Search for industry observances/awareness months for this company's industry. (3) Search '" + company + " facebook instagram twitter tiktok youtube' for social media profile URLs.",
       "CRITICAL: corporateAddress is HIGH PRIORITY. Check the company's contact page, about page, footer, or Google Maps listing. If you find a partial address, include what you have. Never leave corporateAddress empty if any address info exists online.",
+      "For companyPhone: return the main switchboard or headquarters number. Format as digits with separators (e.g. '+1 555 123 4567' or '(555) 123-4567'). Leave empty if not found on the contact page, about page, or footer. Do not guess.",
       "For socialMedia: ONLY return URLs you find in actual search results. Do NOT guess or construct URLs. Leave empty string for any platform not found. Return ONLY valid JSON:",
-      "{\"companyName\":\"\",\"employees\":\"number only\",\"industry\":\"Healthcare|Education|Finance|Nonprofit|Retail|Technology|Manufacturing|Government|Legal|Real Estate or empty\",\"blurb\":\"1 sentence max\",\"revenue\":\"e.g. $2M or empty\",\"foundedYear\":\"4-digit or empty\",\"socialMedia\":{\"facebook\":\"\",\"instagram\":\"\",\"twitter\":\"\",\"tiktok\":\"\",\"youtube\":\"\"},\"recentNews\":[{\"headline\":\"short\",\"date\":\"Mon YYYY\",\"sourceUrl\":\"\"}],\"observances\":[{\"title\":\"\",\"date\":\"Mon D YYYY\",\"notes\":\"\"}],\"corporateAddress\":{\"street\":\"\",\"suite\":\"\",\"city\":\"\",\"state\":\"\",\"zip\":\"\"}}"
+      "{\"companyName\":\"\",\"employees\":\"number only\",\"industry\":\"Healthcare|Education|Finance|Nonprofit|Retail|Technology|Manufacturing|Government|Legal|Real Estate or empty\",\"blurb\":\"1 sentence max\",\"revenue\":\"e.g. $2M or empty\",\"foundedYear\":\"4-digit or empty\",\"companyPhone\":\"main number or empty\",\"socialMedia\":{\"facebook\":\"\",\"instagram\":\"\",\"twitter\":\"\",\"tiktok\":\"\",\"youtube\":\"\"},\"recentNews\":[{\"headline\":\"short\",\"date\":\"Mon YYYY\",\"sourceUrl\":\"\"}],\"observances\":[{\"title\":\"\",\"date\":\"Mon D YYYY\",\"notes\":\"\"}],\"corporateAddress\":{\"street\":\"\",\"suite\":\"\",\"city\":\"\",\"state\":\"\",\"zip\":\"\"}}"
     ].join("\n");
 
     // ── Hooks prompt builder (uses context from P1+P2, no search) ─
@@ -12345,6 +12414,8 @@
               if (_rev) { _researchData.revenue = _rev; got = true; }
               var _fy = _stripTags(result.foundedYear || '').replace(/\D/g,'').slice(0,4);
               if (_fy && _fy.length === 4) { _researchData.foundedYear = _fy; got = true; }
+              var _cp = _formatPhone(result.companyPhone || '');
+              if (_cp && !_researchData.companyPhone) { _researchData.companyPhone = _cp; got = true; }
               // Social media — clean each URL, merge fill-empty-only (scrape results take priority)
               if (result.socialMedia && typeof result.socialMedia === 'object') {
                 if (!_researchData.socialMedia) _researchData.socialMedia = {};
@@ -12909,7 +12980,7 @@
     };
     if (hasAI) {
       rec.aiResearch = 'YES';
-      rec.researchData = (function(){ try { var rd = _researchData; return JSON.stringify({ companyName:rd.companyName, domain:rd.domain, employees:rd.employees, industry:rd.industry, blurb:rd.blurb, revenue:rd.revenue, foundedYear:rd.foundedYear, socialMedia:rd.socialMedia, recentNews:rd.recentNews, eventsSite:rd.eventsSite, eventsWeb:rd.eventsWeb, observances:rd.observances, companyLinkedIn:rd.companyLinkedIn, contactLinkedIn:rd.contactLinkedIn, contactPerson:rd.contactPerson, decisionMakers:rd.decisionMakers, salesHooks:rd.salesHooks, keyPeople:rd.keyPeople||[], searchCostUSD:rd.searchCostUSD, searchDuration:rd.searchDuration, tradeShows:rd.tradeShows||[], competitors:rd.competitors||[], attackPlan:rd.attackPlan||'', attackPlans:rd.attackPlans||{}, attackPlanActive:rd.attackPlanActive||'', companyIntel:rd.companyIntel||'', companyTalkingPoints:rd.companyTalkingPoints||[] }); } catch(e){ return ''; } })();
+      rec.researchData = (function(){ try { var rd = _researchData; return JSON.stringify({ companyName:rd.companyName, domain:rd.domain, employees:rd.employees, industry:rd.industry, blurb:rd.blurb, revenue:rd.revenue, foundedYear:rd.foundedYear, companyPhone:rd.companyPhone||'', socialMedia:rd.socialMedia, recentNews:rd.recentNews, eventsSite:rd.eventsSite, eventsWeb:rd.eventsWeb, observances:rd.observances, companyLinkedIn:rd.companyLinkedIn, contactLinkedIn:rd.contactLinkedIn, contactPerson:rd.contactPerson, decisionMakers:rd.decisionMakers, salesHooks:rd.salesHooks, keyPeople:rd.keyPeople||[], searchCostUSD:rd.searchCostUSD, searchDuration:rd.searchDuration, tradeShows:rd.tradeShows||[], competitors:rd.competitors||[], attackPlan:rd.attackPlan||'', attackPlans:rd.attackPlans||{}, attackPlanActive:rd.attackPlanActive||'', companyIntel:rd.companyIntel||'', companyTalkingPoints:rd.companyTalkingPoints||[] }); } catch(e){ return ''; } })();
       rec.researchEvents = (function(){ try { return JSON.stringify({ events:(_researchData.eventsSite||[]).concat(_researchData.eventsWeb||[]), observances:_researchData.observances||[], tradeShows:_researchData.tradeShows||[] }); } catch(e){ return ''; } })();
       rec.researchNotes = typeof buildResearchBlock === 'function' ? buildResearchBlock() : '';
       rec.aiEmailHtml = (function(){ try { var el = document.getElementById('rp-email-preview-html'); return el ? (el._fullEmailDoc || el.innerHTML) : ''; } catch(e){ return ''; } })();
@@ -15434,13 +15505,20 @@
           '<p class="research-event-sub">' + dateStr + (venue ? ' · ' + venue : '') + (source && source.match(/^https?:\/\//) ? ' · <a href="' + source + '" target="_blank" style="color:#60a5fa;text-decoration:none;font-size:10px;" onclick="event.stopPropagation()">' + source.replace(/^https?:\/\/(www\.)?/,'').replace(/\/.*$/,'') + '</a>' : (source ? ' · ' + source : '')) + daysAwayBadge + '</p>' +
         '</div>' +
         '<div class="research-event-actions">' +
-          '<button class="research-outlook-btn" id="' + id + '-outlook" onclick="event.stopPropagation(); addToOutlook(\'' + id + '\', ' + JSON.stringify(evt).replace(/</g,'\\u003c') + ')">+ Outlook</button>' +
+          '<div class="research-cal-wrap">' +
+            '<button class="research-outlook-btn" id="' + id + '-outlook" onclick="event.stopPropagation(); toggleCalMenu(\'' + id + '\')">+ Calendar ▾</button>' +
+            '<div class="research-cal-menu" id="' + id + '-calmenu">' +
+              '<button class="research-cal-menu-item" onclick="event.stopPropagation(); addToCalendar(\'' + id + '\', ' + JSON.stringify(evt).replace(/</g,'\\u003c') + ', \'outlook\')">Outlook (web) <span class="cal-item-sub">→</span></button>' +
+              '<button class="research-cal-menu-item" onclick="event.stopPropagation(); addToCalendar(\'' + id + '\', ' + JSON.stringify(evt).replace(/</g,'\\u003c') + ', \'google\')">Google Calendar <span class="cal-item-sub">→</span></button>' +
+              '<button class="research-cal-menu-item" onclick="event.stopPropagation(); addToCalendar(\'' + id + '\', ' + JSON.stringify(evt).replace(/</g,'\\u003c') + ', \'ics\')">Download .ics <span class="cal-item-sub">⇩</span></button>' +
+            '</div>' +
+          '</div>' +
           '<div class="research-expand-btn" id="' + id + '-arrow">▾</div>' +
         '</div>' +
       '</div>' +
       '<div class="research-event-body" id="' + id + '-body">' +
         (summaryHTML) +
-        '<p class="research-notes-label">Edit notes before adding to Outlook</p>' +
+        '<p class="research-notes-label">Edit notes before adding to calendar</p>' +
         '<textarea class="research-notes-area" id="' + id + '-notes">' + notes + '</textarea>' +
         '<div class="research-reminder-row">' +
           '<span class="research-reminder-label">Reminder</span>' +
@@ -15614,8 +15692,50 @@
     if (arrow) arrow.textContent = open ? '▾' : '▴';
   }
 
-  function addToOutlook(id, evt) {
-    var btn     = document.getElementById(id + '-outlook');
+  // Parse event date strings like "Sep 1 2026", "Sep 1-3 2026", "September 1-3, 2026", "2026-09-01"
+  // Returns the START date as a JS Date, or null if unparseable.
+  // Handles the "Sep 1-3 2026" case where naive parsing yields year 2003.
+  function _parseEventDate(s) {
+    if (!s) return null;
+    var str = String(s).trim();
+    // ISO format passes through
+    var iso = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) {
+      var d = new Date(parseInt(iso[1]), parseInt(iso[2]) - 1, parseInt(iso[3]));
+      return isNaN(d) ? null : d;
+    }
+    // Strip range portion: "Sep 1-3 2026" → "Sep 1 2026", "Sep 15-17, 2026" → "Sep 15, 2026"
+    var stripped = str.replace(/^([A-Za-z]+\s+\d+)\s*[\u2013\u2014\-]\s*\d+(\s*,?\s*\d{4})/, '$1$2');
+    var d = new Date(stripped);
+    if (!isNaN(d)) return d;
+    // Fallback: try the original string
+    d = new Date(str);
+    return isNaN(d) ? null : d;
+  }
+
+  function toggleCalMenu(id) {
+    var menu = document.getElementById(id + '-calmenu');
+    if (!menu) return;
+    var wasOpen = menu.classList.contains('open');
+    // Close all other open menus first
+    document.querySelectorAll('.research-cal-menu.open').forEach(function(m) { m.classList.remove('open'); });
+    if (!wasOpen) {
+      menu.classList.add('open');
+      // Set up one-shot outside-click closer
+      setTimeout(function() {
+        var closer = function(e) {
+          if (!menu.contains(e.target)) {
+            menu.classList.remove('open');
+            document.removeEventListener('click', closer);
+          }
+        };
+        document.addEventListener('click', closer);
+      }, 0);
+    }
+  }
+
+  // Build the shared event details: title, location, description, start/end dates
+  function _buildCalEventDetails(id, evt) {
     var notesEl = document.getElementById(id + '-notes');
     var name    = document.getElementById('f-name').value.trim() || '—';
     var company = document.getElementById('f-company').value.trim() || '—';
@@ -15635,55 +15755,96 @@
     var notes   = notesEl ? notesEl.value : '';
     var now     = new Date();
     var filed   = now.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
-    var body =
+    var description =
       'QLP OPPORTUNITY — PROMOTIONAL PRODUCTS\n\n' +
       'Customer: ' + name + '\nCompany: ' + company + '\nCID: ' + cid +
       '\nPhone: ' + phone + '\nEmail: ' + email + '\n\n' +
       'Score: ' + total + '/9 · Assigned To: ' + owner + '\nEntered By: ' + rep +
       '\nBudget: ' + budget + '\nFiled: ' + filed + '\n\nEVENT NOTES\n' + notes;
-    // Build .ics file and trigger download — opens directly in Outlook
-    var eventDate = now;
-    // Try to parse event date from evt.date string
-    if (evt.date) {
-      var parsed = new Date(evt.date);
-      if (!isNaN(parsed)) eventDate = parsed;
-    }
-    var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
-    var dtStr = function(d) {
-      return d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) +
-        'T' + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
-    };
+    var eventDate = _parseEventDate(evt.date) || now;
     var start = new Date(eventDate); start.setHours(9,0,0,0);
     var end   = new Date(eventDate); end.setHours(10,0,0,0);
-    var uid   = Date.now() + '@qlp.vrc';
-    var icsBody = [
-      'BEGIN:VCALENDAR',
-      'VERSION:2.0',
-      'PRODID:-//QLP VRC//EN',
-      'METHOD:PUBLISH',
-      'BEGIN:VEVENT',
-      'UID:' + uid,
-      'DTSTAMP:' + dtStr(now) + 'Z',
-      'DTSTART:' + dtStr(start),
-      'DTEND:' + dtStr(end),
-      'SUMMARY:' + ((evt.title || 'Event') + ' — ' + company + ' (QLP)').replace(/,/g, '\,'),
-      'LOCATION:' + (evt.venue || '').replace(/,/g, '\,'),
-      'DESCRIPTION:' + body.split('\n').join('\\n').split(',').join('\\,'),
-      (evt.recurring ? 'RRULE:FREQ=YEARLY' : ''),
-      'END:VEVENT',
-      'END:VCALENDAR'
-    ].filter(Boolean).join('\r\n');
-    var blob = new Blob([icsBody], { type: 'text/calendar;charset=utf-8' });
-    var url  = URL.createObjectURL(blob);
-    var a    = document.createElement('a');
-    a.href   = url;
-    a.download = ((evt.title || 'Event') + ' - QLP').replace(/[^a-zA-Z0-9 -]/g, '') + '.ics';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+    return {
+      title: (evt.title || 'Event') + ' — ' + company + ' (QLP)',
+      location: evt.venue || '',
+      description: description,
+      start: start,
+      end: end,
+      now: now,
+      recurring: !!evt.recurring
+    };
+  }
+
+  function addToCalendar(id, evt, target) {
+    var btn = document.getElementById(id + '-outlook');
+    var menu = document.getElementById(id + '-calmenu');
+    if (menu) menu.classList.remove('open');
+    var det = _buildCalEventDetails(id, evt);
+    if (target === 'outlook') {
+      // Outlook web deep link — opens Outlook calendar event compose
+      var url = 'https://outlook.live.com/calendar/0/deeplink/compose' +
+        '?path=%2Fcalendar%2Faction%2Fcompose' +
+        '&rru=addevent' +
+        '&subject=' + encodeURIComponent(det.title) +
+        '&startdt=' + encodeURIComponent(det.start.toISOString()) +
+        '&enddt='   + encodeURIComponent(det.end.toISOString()) +
+        '&location=' + encodeURIComponent(det.location) +
+        '&body=' + encodeURIComponent(det.description);
+      window.open(url, '_blank', 'noopener');
+    } else if (target === 'google') {
+      // Google Calendar event create URL
+      var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+      var gFmt = function(d) {
+        return d.getUTCFullYear() + pad(d.getUTCMonth()+1) + pad(d.getUTCDate()) +
+          'T' + pad(d.getUTCHours()) + pad(d.getUTCMinutes()) + pad(d.getUTCSeconds()) + 'Z';
+      };
+      var url = 'https://calendar.google.com/calendar/render?action=TEMPLATE' +
+        '&text=' + encodeURIComponent(det.title) +
+        '&dates=' + gFmt(det.start) + '/' + gFmt(det.end) +
+        '&location=' + encodeURIComponent(det.location) +
+        '&details=' + encodeURIComponent(det.description) +
+        (det.recurring ? '&recur=' + encodeURIComponent('RRULE:FREQ=YEARLY') : '');
+      window.open(url, '_blank', 'noopener');
+    } else {
+      // .ics download
+      var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+      var dtStr = function(d) {
+        return d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) +
+          'T' + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
+      };
+      var uid = Date.now() + '@qlp.vrc';
+      var icsBody = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//QLP VRC//EN',
+        'METHOD:PUBLISH',
+        'BEGIN:VEVENT',
+        'UID:' + uid,
+        'DTSTAMP:' + dtStr(det.now) + 'Z',
+        'DTSTART:' + dtStr(det.start),
+        'DTEND:' + dtStr(det.end),
+        'SUMMARY:' + det.title.replace(/,/g, '\\,'),
+        'LOCATION:' + det.location.replace(/,/g, '\\,'),
+        'DESCRIPTION:' + det.description.split('\n').join('\\n').split(',').join('\\,'),
+        (det.recurring ? 'RRULE:FREQ=YEARLY' : ''),
+        'END:VEVENT',
+        'END:VCALENDAR'
+      ].filter(Boolean).join('\r\n');
+      var blob = new Blob([icsBody], { type: 'text/calendar;charset=utf-8' });
+      var url  = URL.createObjectURL(blob);
+      var a    = document.createElement('a');
+      a.href   = url;
+      a.download = ((evt.title || 'Event') + ' - QLP').replace(/[^a-zA-Z0-9 -]/g, '') + '.ics';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+    }
     if (btn) { btn.textContent = 'Added ✓'; btn.classList.add('added'); }
   }
+
+  // Backward compat — kept in case anything else references it
+  function addToOutlook(id, evt) { addToCalendar(id, evt, 'ics'); }
 
   function populateObservances() { /* merged into populateEvents */ }
 
@@ -16279,6 +16440,23 @@
     var cp = _researchData.contactPerson || null;
     var contactName = document.getElementById('f-name') ? document.getElementById('f-name').value.trim() : '';
     var html = '';
+
+    // ── Company main phone (research-derived) ────────────────
+    if (_researchData.companyPhone) {
+      var coPhone = _researchData.companyPhone;
+      var coPhoneSafe = coPhone.replace(/'/g, "\\'");
+      html += '<div style="font-size:10px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #1e293b;padding-bottom:8px;margin-bottom:10px;">Company Main Line</div>';
+      html += '<div style="background:#1c1d1f;border:1px solid rgba(139,143,168,0.25);border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;">' +
+        '<div style="width:32px;height:32px;border-radius:50%;background:rgba(139,143,168,0.12);border:1.5px solid rgba(139,143,168,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;">' +
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B8BBCC" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>' +
+        '</div>' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="font-size:9px;font-weight:600;color:#B8BBCC;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:1px;">Switchboard / Main</div>' +
+          '<a href="tel:' + coPhone.replace(/[^0-9+]/g,'') + '" style="font-size:14px;font-weight:600;color:var(--text);text-decoration:none;">' + coPhone + '</a>' +
+        '</div>' +
+        '<button onclick="(function(p){var el=document.getElementById(\'f-phone\');if(el){el.value=p;el.dispatchEvent(new Event(\'input\',{bubbles:true}));}})(\'' + coPhoneSafe + '\')" style="font-size:10px;font-weight:600;padding:5px 10px;border-radius:5px;background:rgba(93,202,165,0.1);border:1px solid rgba(93,202,165,0.35);color:#5DCAA5;cursor:pointer;">Use</button>' +
+      '</div>';
+    }
 
     // ── Your Contact section ──────────────────────────────
     html += '<div style="font-size:10px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #1e293b;padding-bottom:8px;margin-bottom:10px;">Your Contact</div>';
