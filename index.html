@@ -9332,9 +9332,18 @@
     if (ivCardRes) ivCardRes.classList.remove('iv-pending-lock');
 
     // Budget toggle + amount
-    if (r.budgetType) {
-      window._budgetType = r.budgetType;
-      setIosToggleState('budget', r.budgetType);
+    // Prefer the explicit budgetType field; fall back to inferring from pvLabel.
+    // (Older records may have been saved without budgetType, but their pvLabel
+    // includes "Yearly Budget" or "Project Budget" which is a reliable signal.)
+    var resolvedBudgetType = r.budgetType || '';
+    if (!resolvedBudgetType && r.pvLabel) {
+      var lbl = String(r.pvLabel);
+      if (/Project\s*Budget/i.test(lbl)) resolvedBudgetType = 'Project';
+      else if (/Yearly\s*Budget/i.test(lbl)) resolvedBudgetType = 'Yearly';
+    }
+    if (resolvedBudgetType) {
+      window._budgetType = resolvedBudgetType;
+      setIosToggleState('budget', resolvedBudgetType);
     } else {
       window._budgetType = '';
       var budTog = document.getElementById('budget-toggle');
@@ -9360,9 +9369,17 @@
     }
 
     // Customer toggle
-    if (r.customerType) {
-      window._customerType = r.customerType;
-      setIosToggleState('customer', r.customerType);
+    // Prefer explicit customerType; fall back to inferring from avLabel
+    // ("New Customer" / "Existing Customer" / "Lifetime Spend") for older records.
+    var resolvedCustomerType = r.customerType || '';
+    if (!resolvedCustomerType && r.avLabel) {
+      var avL = String(r.avLabel);
+      if (/Existing\s*Customer/i.test(avL) || /Lifetime\s*Spend/i.test(avL)) resolvedCustomerType = 'Existing Customer';
+      else if (/New\s*Customer/i.test(avL) || /Current\s*Or\s*New\s*Order\s*Spend/i.test(avL)) resolvedCustomerType = 'New Customer';
+    }
+    if (resolvedCustomerType) {
+      window._customerType = resolvedCustomerType;
+      setIosToggleState('customer', resolvedCustomerType);
     } else {
       window._customerType = '';
       var custTog = document.getElementById('customer-toggle');
@@ -12741,6 +12758,23 @@
   }
 
   function validateBeforeSend() {
+    // Self-heal: if PV/AV are scored but the corresponding type toggle is missing
+    // (older record, edge-case state loss), infer the type from the saved label
+    // text rather than blocking the user with a redundant prompt.
+    if (scores.pv !== null && !window._budgetType) {
+      var pvL = (labels.pv || '');
+      if (/Project\s*Budget/i.test(pvL)) { window._budgetType = 'Project'; setIosToggleState('budget','Project'); }
+      else if (/Yearly\s*Budget/i.test(pvL)) { window._budgetType = 'Yearly'; setIosToggleState('budget','Yearly'); }
+      // If still empty (no signal in label), default to 'Yearly' — the conservative
+      // assumption since most B2B promo budgets are framed annually.
+      if (!window._budgetType) { window._budgetType = 'Yearly'; setIosToggleState('budget','Yearly'); }
+    }
+    if (scores.av !== null && !window._customerType) {
+      var avL = (labels.av || '');
+      if (/Existing\s*Customer/i.test(avL) || /Lifetime\s*Spend/i.test(avL)) { window._customerType = 'Existing Customer'; setIosToggleState('customer','Existing Customer'); }
+      else if (/New\s*Customer/i.test(avL) || /Current\s*Or\s*New\s*Order\s*Spend/i.test(avL)) { window._customerType = 'New Customer'; setIosToggleState('customer','New Customer'); }
+      if (!window._customerType) { window._customerType = 'New Customer'; setIosToggleState('customer','New Customer'); }
+    }
     var checks = {
       name:     !document.getElementById('f-name').value.trim(),
       contact:  !document.getElementById('f-phone').value.trim() && !document.getElementById('f-email').value.trim(),
