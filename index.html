@@ -18,7 +18,7 @@
 </script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AG's IPA Report Card</title>
+<title>IPA Score Card</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=Inter:wght@300;400;500&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
 <!-- Maps API key loaded dynamically from server -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2927,7 +2927,7 @@
         <span class="beer-bubble" style="width:3px;height:3px;left:28px;animation-duration:2s;animation-delay:0.3s;"></span>
         <span class="beer-bubble" style="width:4px;height:4px;left:6px;animation-duration:2.6s;animation-delay:1.5s;"></span>
       </span>
-      <div class="login-logo" style="white-space:nowrap;">AG's&nbsp;<span style="color:#f59e0b;-webkit-text-fill-color:#f59e0b;">IPA</span>&nbsp;Report Card</div>
+      <div class="login-logo" style="white-space:nowrap;"><span style="color:#f59e0b;-webkit-text-fill-color:#f59e0b;">IPA</span>&nbsp;Score Card</div>
     </div>
     <div class="login-sub">Internal Tool · Enter passcode to continue</div>
     <div style="width:100%;margin-top:4px;">
@@ -3339,7 +3339,7 @@
 <!-- Rep selector bar -->
 <div class="rep-bar" id="rep-bar">
   <div class="rep-bar-inner">
-    <span style="font-family:'Syne',sans-serif;font-size:12px;font-weight:600;color:var(--text-muted);letter-spacing:0.01em;white-space:nowrap;margin-right:6px;opacity:0.6;">© AG's IPA Report Card</span>
+    <span style="font-family:'Syne',sans-serif;font-size:12px;font-weight:600;color:var(--text-muted);letter-spacing:0.01em;white-space:nowrap;margin-right:6px;opacity:0.6;">© IPA Score Card</span>
     <span style="width:1px;height:14px;background:var(--border);flex-shrink:0;margin-right:6px;"></span>
     <span class="rep-bar-label">Logged in as:</span>
     <button class="rep-bar-name" id="rep-bar-name" onclick="openRepModal()">— Select your name —</button>
@@ -3443,7 +3443,7 @@
       <span class="beer-bubble" style="width:3px;height:3px;left:30px;animation-duration:1.6s;animation-delay:1.3s;"></span>
       <span class="beer-bubble" style="width:4px;height:4px;left:12px;animation-duration:2s;animation-delay:0s;"></span>
     </span>
-    <span data-lk="lk_header_title" class="editable-text">AG's&nbsp;<span style="color:#f59e0b;-webkit-text-fill-color:#f59e0b;">IPA</span>&nbsp;Report Card</span>
+    <span data-lk="lk_header_title" class="editable-text"><span style="color:#f59e0b;-webkit-text-fill-color:#f59e0b;">IPA</span>&nbsp;Score Card</span>
     <!-- Fizzing Beer SVG Right -->
     <span class="beer-wrap" aria-hidden="true" style="margin-left:8px;margin-right:0;">
       <svg class="beer-svg" width="64" height="68" viewBox="0 0 64 68" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -3495,21 +3495,34 @@
       <div class="card-body">
         <div class="card-hint"><span data-lk="lk_iv_hint" class="editable-text">What best describes this customer?</span></div>
         <div class="edit-hint">Click any label or detail to edit it.</div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-          <label class="header-toggle-label" id="emp-count-label" style="white-space:nowrap;margin-bottom:0;"><span data-lk="lk_emp_label" class="editable-text">Employee Count</span></label>
-          <div style="position:relative;width:100%;">
-            <input class="field-input" type="number" id="f-employees" placeholder="e.g. 120" min="1" max="9999999"
-              style="width:100%;padding:5px 24px 5px 8px;font-size:12px;"
-              onkeydown="if(this.classList.contains('ai-filled')){event.preventDefault();var _el=this;aiConfirm('The employee count was filled in by AI. Are you sure you want to change it?').then(function(ok){if(ok){_el.classList.remove('ai-filled');_el.focus();}});}" oninput="this.classList.remove('ai-filled');autoSelectIV(this.value);_updateFieldLabel('emp-count-label',this.value);document.getElementById('emp-clear').style.display=this.value?'flex':'none';">
-            <button id="emp-clear" onclick="document.getElementById('f-employees').value='';autoSelectIV('');this.style.display='none';" style="display:none;position:absolute;right:5px;top:50%;transform:translateY(-50%);background:none;border:none;color:#f87171;font-size:11px;cursor:pointer;padding:2px 3px;line-height:1;align-items:center;justify-content:center;">✕</button>
+        <div style="display:flex;gap:8px;margin-bottom:8px;align-items:flex-end;">
+          <div style="flex:1;min-width:0;">
+            <label class="header-toggle-label" id="emp-count-label" style="display:block;margin-bottom:4px;font-size:9px;"><span data-lk="lk_emp_label" class="editable-text">Employee Count</span> <span id="emp-driver-star" style="display:none;color:#B8BBCC;font-size:11px;font-weight:700;">★</span></label>
+            <div style="position:relative;">
+              <input class="field-input" type="number" id="f-employees" placeholder="e.g. 120" min="1" max="9999999"
+                style="width:100%;padding:5px 24px 5px 8px;font-size:12px;"
+                onkeydown="if(this.classList.contains('ai-filled')){event.preventDefault();var _el=this;aiConfirm('The employee count was filled in by AI. Are you sure you want to change it?').then(function(ok){if(ok){_el.classList.remove('ai-filled');_el.focus();}});}" oninput="this.classList.remove('ai-filled');autoSelectIV();_updateFieldLabel('emp-count-label',this.value);document.getElementById('emp-clear').style.display=this.value?'flex':'none';_updateIVHint();">
+              <button id="emp-clear" onclick="document.getElementById('f-employees').value='';autoSelectIV();_updateFieldLabel('emp-count-label','');this.style.display='none';_updateIVHint();" style="display:none;position:absolute;right:5px;top:50%;transform:translateY(-50%);background:none;border:none;color:#f87171;font-size:11px;cursor:pointer;padding:2px 3px;line-height:1;align-items:center;justify-content:center;">✕</button>
+            </div>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <label class="header-toggle-label" id="rev-amt-label" style="display:block;margin-bottom:4px;font-size:9px;"><span data-lk="lk_rev_label" class="editable-text">Annual Revenue</span> <span id="rev-driver-star" style="display:none;color:#B8BBCC;font-size:11px;font-weight:700;">★</span></label>
+            <div style="position:relative;">
+              <span id="rev-dollar" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;color:#717378;pointer-events:none;">$</span>
+              <input class="field-input" type="text" id="f-revenue" placeholder="e.g. 38M or 38,000,000"
+                style="width:100%;padding:5px 24px 5px 18px;font-size:12px;"
+                onkeydown="if(this.classList.contains('ai-filled')){event.preventDefault();var _el=this;aiConfirm('The revenue was filled in by AI. Are you sure you want to change it?').then(function(ok){if(ok){_el.classList.remove('ai-filled');_el.focus();}});}" oninput="this.classList.remove('ai-filled');autoSelectIV();_updateFieldLabel('rev-amt-label',this.value);document.getElementById('rev-clear').style.display=this.value?'flex':'none';document.getElementById('rev-dollar').style.color=this.value?'#fff':'#717378';_updateIVHint();">
+              <button id="rev-clear" onclick="document.getElementById('f-revenue').value='';autoSelectIV();_updateFieldLabel('rev-amt-label','');this.style.display='none';document.getElementById('rev-dollar').style.color='#717378';_updateIVHint();" style="display:none;position:absolute;right:5px;top:50%;transform:translateY(-50%);background:none;border:none;color:#f87171;font-size:11px;cursor:pointer;padding:2px 3px;line-height:1;align-items:center;justify-content:center;">✕</button>
+            </div>
           </div>
         </div>
+        <div id="iv-hint-line" style="font-size:10px;color:#6b6c70;text-align:center;margin-bottom:8px;font-style:italic;">Either input scores the tile · higher tier wins</div>
         <div class="options">
           <button class="option" data-group="iv" data-val="1" data-label="Small / Local Business (49 Or Fewer Employees)" onclick="optionClick(event, this)">
             <div class="option-radio"></div>
             <div class="option-content">
               <div class="option-main"><span data-lk="lk_iv1_main" class="editable-main">Small / local business</span></div>
-              <div class="option-detail"><span data-lk="lk_iv1_detail" class="editable-detail">49 or fewer employees</span></div>
+              <div class="option-detail"><span data-lk="lk_iv1_detail" class="editable-detail">49 or fewer · under $5M</span></div>
             </div>
             <span class="option-badge">1 pt</span>
           </button>
@@ -3517,7 +3530,7 @@
             <div class="option-radio"></div>
             <div class="option-content">
               <div class="option-main"><span data-lk="lk_iv2_main" class="editable-main">Regional / mid-market</span></div>
-              <div class="option-detail"><span data-lk="lk_iv2_detail" class="editable-detail">50 to 499 employees</span></div>
+              <div class="option-detail"><span data-lk="lk_iv2_detail" class="editable-detail">50 to 499 · $5M–$50M</span></div>
             </div>
             <span class="option-badge">2 pts</span>
           </button>
@@ -3525,7 +3538,7 @@
             <div class="option-radio"></div>
             <div class="option-content">
               <div class="option-main"><span data-lk="lk_iv3_main" class="editable-main">National / enterprise brand</span></div>
-              <div class="option-detail"><span data-lk="lk_iv3_detail" class="editable-detail">500+ employees</span></div>
+              <div class="option-detail"><span data-lk="lk_iv3_detail" class="editable-detail">500+ · $50M+</span></div>
             </div>
             <span class="option-badge">3 pts</span>
           </button>
@@ -5545,7 +5558,7 @@
     '</div>' +
     '<table><thead><tr><th>Date</th><th>Rep</th><th>Company</th><th>Tokens</th><th>Cost</th><th>Running Total</th></tr></thead>' +
     '<tbody>' + rowsHtml + '</tbody></table>' +
-    '<div class="footer">AG&#39;s IPA Report Card &middot; Anthropic API (claude-haiku-4-5) &middot; $0.80/M input &middot; $4.00/M output</div>' +
+    '<div class="footer">IPA Score Card &middot; Anthropic API (claude-haiku-4-5) &middot; $0.80/M input &middot; $4.00/M output</div>' +
     '</body></html>';
 
     var w = window.open('', '_blank');
@@ -5637,7 +5650,7 @@
 
     var prompt = [
       'You are a financial reporting assistant. Using the usage data below, generate a monthly AI cost statement in valid JSON for export.',
-      'BILLING ENTITY: AG\'s IPA Report Card — Quality Logo Products',
+      'BILLING ENTITY: IPA Score Card — Quality Logo Products',
       'PERIOD: ' + monthStr + ' ' + year,
       'DATA: ' + rowsStr,
       'Generate a structured statement with the following sections:',
@@ -5724,7 +5737,7 @@
 
     // Summary sheet
     var sumData = [
-      ['AG\'s IPA Report Card — Monthly AI Cost Statement'],
+      ['IPA Score Card — Monthly AI Cost Statement'],
       ['Period: ' + s._month + ' ' + s._year],
       ['Generated: ' + new Date().toLocaleDateString()],
       [],
@@ -5780,7 +5793,7 @@
       ['Payment Method', tf.paymentMethod],
       ['Expense Category', tf.expenseCategory],
       ['Period', s._month + ' ' + s._year],
-      ['Billing Entity', 'AG\'s IPA Report Card — Quality Logo Products']
+      ['Billing Entity', 'IPA Score Card — Quality Logo Products']
     ];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(taxData), 'Tax Fields');
 
@@ -5824,7 +5837,7 @@
     '@media print{body{padding:16px;}}' +
     '</style></head><body>' +
     '<div class="header"><h1>AI Cost Statement — ' + s._month + ' ' + s._year + '</h1>' +
-    '<p>AG\'s IPA Report Card &nbsp;·&nbsp; Quality Logo Products &nbsp;·&nbsp; Generated ' + new Date().toLocaleDateString() + '</p></div>' +
+    '<p>IPA Score Card &nbsp;·&nbsp; Quality Logo Products &nbsp;·&nbsp; Generated ' + new Date().toLocaleDateString() + '</p></div>' +
     '<div class="stats">' +
     '<div class="stat"><div class="stat-val">' + (sm.totalCalls||0) + '</div><div class="stat-lbl">Total Calls</div></div>' +
     '<div class="stat"><div class="stat-val">$' + (sm.totalCostUSD||0).toFixed(4) + '</div><div class="stat-lbl">Total Cost</div></div>' +
@@ -5844,7 +5857,7 @@
     '<tr><td>Expense Category</td><td>' + tf.expenseCategory + '</td></tr>' +
     '<tr class="highlight"><td>Total Deductible Amount</td><td>$' + (tf.totalDeductibleUSD||0).toFixed(4) + '</td></tr>' +
     '</tbody></table>' +
-    '<div class="footer"><span>AG\'s IPA Report Card &middot; Anthropic API (claude-haiku-4-5)</span><span>Confidential — For Internal Use</span></div>' +
+    '<div class="footer"><span>IPA Score Card &middot; Anthropic API (claude-haiku-4-5)</span><span>Confidential — For Internal Use</span></div>' +
     '</body></html>';
 
     var w = window.open('', '_blank');
@@ -5945,7 +5958,8 @@
     // Block manual selection when a dollar amount is driving the tier
     if (el.dataset.group === 'iv') {
       var empAmt = document.getElementById('f-employees');
-      if (empAmt && empAmt.value.trim()) return;
+      var revAmt = document.getElementById('f-revenue');
+      if ((empAmt && empAmt.value.trim()) || (revAmt && revAmt.value.trim())) return;
     }
     if (el.dataset.group === 'pv') {
       var pvAmt = document.getElementById('f-budget');
@@ -5975,6 +5989,7 @@
         empInp.style.borderColor = 'rgba(29,158,117,0.4)';
         empInp.style.boxShadow   = '0 0 0 2px rgba(29,158,117,0.08)';
       }
+      if (typeof _updateIVHint === 'function') _updateIVHint();
     }
     if (group === 'pv' && window._budgetType === 'Project') {
       // Derive carry-over value from typed budget field or config thresholds
@@ -6214,7 +6229,10 @@
     if (!el) return;
     var hasVal = value && String(value).trim() !== '';
     el.style.color = hasVal ? 'var(--green)' : '';
-    var inputId = labelId === 'emp-count-label' ? 'f-employees' : 'f-budget';
+    var inputId;
+    if (labelId === 'emp-count-label') inputId = 'f-employees';
+    else if (labelId === 'rev-amt-label') inputId = 'f-revenue';
+    else inputId = 'f-budget';
     var inp = document.getElementById(inputId);
     if (inp) {
       inp.style.borderColor = hasVal ? 'rgba(29,158,117,0.4)' : '';
@@ -6226,37 +6244,75 @@
     }
   }
 
-  function autoSelectIV(val) {
-    var n = parseInt(val);
-    var group = 'iv';
+  // Toggle the helper hint line based on whether a valid score is set.
+  // Visible whenever no tier is selected, so users see guidance even with unparseable input.
+  function _updateIVHint() {
+    var hint = document.getElementById('iv-hint-line');
+    if (hint) hint.style.display = (scores.iv == null) ? '' : 'none';
+  }
+
+  function autoSelectIV(_legacyArg) {
+    var empEl = document.getElementById('f-employees');
+    var revEl = document.getElementById('f-revenue');
+    var empVal = empEl ? empEl.value : '';
+    var revVal = revEl ? revEl.value : '';
+    var nEmp = parseInt(empVal);
     var ivOpts = document.querySelector('#card-iv .options');
+    var empStar = document.getElementById('emp-driver-star');
+    var revStar = document.getElementById('rev-driver-star');
     // Clear all iv selections first
     document.querySelectorAll('[data-group="iv"]').forEach(function(o) {
       o.classList.remove('selected');
     });
-    if (!val || isNaN(n) || n < 1) {
+    // Hide both driver stars by default
+    if (empStar) empStar.style.display = 'none';
+    if (revStar) revStar.style.display = 'none';
+    var hasEmp = !isNaN(nEmp) && nEmp >= 1;
+    var hasRev = revVal && String(revVal).trim() !== '';
+    if (!hasEmp && !hasRev) {
       // Empty — clear selection so manual pick is required
       scores.iv = null;
       labels.iv = '';
       if (ivOpts) ivOpts.classList.remove('amount-locked');
       calculate();
       checkCopyReady();
+      _updateIVHint();
       return;
     }
-    // Composite scoring: take the higher tier between headcount and revenue (if AI found revenue).
-    // Falls back to headcount-only when revenue is unknown.
-    var composite = compositeIVScore(n, (_researchData && _researchData.revenue) || '');
-    var targetVal = composite.score || empCountToIVScore(n) || 1;
+    // Composite scoring: take the higher tier between headcount and revenue.
+    var composite = compositeIVScore(hasEmp ? nEmp : '', hasRev ? revVal : '');
+    if (!composite.score) {
+      // Couldn't derive a tier from either signal (e.g. unparseable revenue, no headcount).
+      // Treat as no selection — same as fully empty case.
+      scores.iv = null;
+      labels.iv = '';
+      if (ivOpts) ivOpts.classList.remove('amount-locked');
+      calculate();
+      checkCopyReady();
+      _updateIVHint();
+      return;
+    }
+    var targetVal = composite.score;
     var targetOption = document.querySelector('[data-group="iv"][data-val="' + targetVal + '"]');
     if (targetOption) {
       targetOption.classList.add('selected');
       scores.iv = targetVal;
-      labels.iv = targetOption.dataset.label;
-      // Append employee count to label for copy/sheet; note revenue boost when applicable
-      var labelExtras = [n + ' employees'];
-      if (composite.source === 'revenue') labelExtras.push('boosted by revenue');
-      else if (composite.source === 'both') labelExtras.push('matches revenue');
-      labels.iv = labels.iv + ' — ' + labelExtras.join(', ');
+      // Build label with whatever inputs are present (strip leading $ from revVal to avoid $$ collision)
+      var labelExtras = [];
+      if (hasEmp) labelExtras.push(nEmp + ' employees');
+      if (hasRev) labelExtras.push('$' + String(revVal).trim().replace(/^\$\s*/, '') + ' revenue');
+      if (composite.source === 'revenue') labelExtras.push('revenue is driver');
+      else if (composite.source === 'headcount' && hasRev) labelExtras.push('headcount is driver');
+      else if (composite.source === 'both') labelExtras.push('both signals match');
+      labels.iv = targetOption.dataset.label + (labelExtras.length ? ' — ' + labelExtras.join(', ') : '');
+      // Mark the driving input with ★
+      if (composite.source === 'revenue' && revStar) revStar.style.display = '';
+      else if (composite.source === 'headcount' && empStar) empStar.style.display = '';
+      else if (composite.source === 'both') {
+        // When both signals point at the same tier, mark both
+        if (empStar) empStar.style.display = '';
+        if (revStar) revStar.style.display = '';
+      }
       if (ivOpts) ivOpts.classList.add('amount-locked');
       calculate();
       checkCopyReady();
@@ -6267,6 +6323,7 @@
         _researchData.ivState     = (_researchData.ivAiScore !== targetVal) ? 'mismatch' : 'match';
         _ivAccepted = false;
       }
+      _updateIVHint();
     }
   }
 
@@ -6830,7 +6887,7 @@
     var hotPrefix = isHot ? '🔥 **HOT** ' : '';
 
     var text =
-      hotPrefix + 'Assigned To |' + owner + '|' + (_assignOverride ? ' (Override)' : '') + ' — AG\'s IPA Report Card — Score ' + total + '/9 — ' + date + ' at ' + time + '\n\n' +
+      hotPrefix + 'Assigned To |' + owner + '|' + (_assignOverride ? ' (Override)' : '') + ' — IPA Score Card — Score ' + total + '/9 — ' + date + ' at ' + time + '\n\n' +
       (isHot ? '🔥 HOT — NEEDS IMMEDIATE ATTENTION\n\n' : '') +
       'Score: ' + total + '/9  ' + stars + '  |  Assigned To: ' + owner + '\n' +
       'Priority: ' + priority + '\n' +
@@ -6867,6 +6924,7 @@
           iv: scores.iv, pv: scores.pv, av: scores.av,
           ivLabel: labels.iv, pvLabel: labels.pv, avLabel: labels.av,
           employees: document.getElementById('f-employees').value || '',
+          revenue: document.getElementById('f-revenue') ? document.getElementById('f-revenue').value || '' : '',
           budgetAmount: document.getElementById('f-budget').value || '',
           avAmount: document.getElementById('f-av-amount') ? document.getElementById('f-av-amount').value || '' : '',
           pillClass: pillClass, rep: window._currentRep || '—',
@@ -7345,7 +7403,19 @@
     var empLblR = document.getElementById('emp-count-label');
     var empInpR = document.getElementById('f-employees');
     if (empLblR) empLblR.style.color = '';
-    if (empInpR) { empInpR.style.borderColor = ''; empInpR.style.boxShadow = ''; empInpR.style.background = ''; }
+    if (empInpR) { empInpR.value = ''; empInpR.classList.remove('ai-filled'); empInpR.style.borderColor = ''; empInpR.style.boxShadow = ''; empInpR.style.background = ''; }
+    var empClearReset = document.getElementById('emp-clear'); if (empClearReset) empClearReset.style.display = 'none';
+    var empStarReset = document.getElementById('emp-driver-star'); if (empStarReset) empStarReset.style.display = 'none';
+    // Reset annual revenue
+    var revLblR = document.getElementById('rev-amt-label');
+    var revInpR = document.getElementById('f-revenue');
+    var revDollarR = document.getElementById('rev-dollar');
+    if (revLblR) revLblR.style.color = '';
+    if (revInpR) { revInpR.value = ''; revInpR.classList.remove('ai-filled'); revInpR.style.borderColor = ''; revInpR.style.boxShadow = ''; revInpR.style.background = ''; }
+    if (revDollarR) revDollarR.style.color = '#717378';
+    var revClearReset = document.getElementById('rev-clear'); if (revClearReset) revClearReset.style.display = 'none';
+    var revStarReset = document.getElementById('rev-driver-star'); if (revStarReset) revStarReset.style.display = 'none';
+    if (typeof _updateIVHint === 'function') _updateIVHint();
     // Reset budget amount + dollar
     var budLblR = document.getElementById('budget-amt-label');
     var budTypLblR = document.getElementById('budget-type-label');
@@ -9004,6 +9074,17 @@
     _savedRecordId = null;
     _submissionLock = false;
     document.querySelectorAll('.option').forEach(function(o){ o.classList.remove('selected'); });
+    // Clear IV input fields so autoSelectIV doesn't pick up residual values from prior session
+    var fEmpNew = document.getElementById('f-employees');
+    if (fEmpNew) { fEmpNew.value = ''; fEmpNew.classList.remove('ai-filled'); fEmpNew.style.borderColor = ''; fEmpNew.style.boxShadow = ''; }
+    var fRevNew = document.getElementById('f-revenue');
+    if (fRevNew) { fRevNew.value = ''; fRevNew.classList.remove('ai-filled'); fRevNew.style.borderColor = ''; fRevNew.style.boxShadow = ''; }
+    var empClearNew = document.getElementById('emp-clear'); if (empClearNew) empClearNew.style.display = 'none';
+    var revClearNew = document.getElementById('rev-clear'); if (revClearNew) revClearNew.style.display = 'none';
+    var empStarNew = document.getElementById('emp-driver-star'); if (empStarNew) empStarNew.style.display = 'none';
+    var revStarNew = document.getElementById('rev-driver-star'); if (revStarNew) revStarNew.style.display = 'none';
+    var revDollarNew = document.getElementById('rev-dollar'); if (revDollarNew) revDollarNew.style.color = '#717378';
+    if (typeof _updateIVHint === 'function') _updateIVHint();
     autoSelectIV('');
     // Re-lock IV tile until next AI research
     var ivCardN = document.getElementById('card-iv');
@@ -9155,17 +9236,32 @@
     var fWebsite = document.getElementById('f-website');
     if (fWebsite) { fWebsite.value = r.website || ''; fWebsite.disabled = false; fWebsite.style.opacity = ''; fWebsite.style.cursor = ''; fWebsite.style.color = ''; fWebsite.style.borderColor = ''; fWebsite.style.background = ''; }
 
-    // Employee count + IV
+    // Employee count + Revenue + IV
     var fEmp = document.getElementById('f-employees');
-    if (fEmp && r.employees) {
-      fEmp.value = r.employees;
-      _updateFieldLabel('emp-count-label', r.employees);
-      autoSelectIV(r.employees);
+    var fRev = document.getElementById('f-revenue');
+    var hadEmp = fEmp && r.employees;
+    var hadRev = fRev && r.revenue;
+    // Restore both fields first
+    if (fEmp) {
+      if (hadEmp) { fEmp.value = r.employees; _updateFieldLabel('emp-count-label', r.employees); }
+      else { fEmp.value = ''; fEmp.classList.remove('ai-filled'); _updateFieldLabel('emp-count-label', ''); var empClearBtnR = document.getElementById('emp-clear'); if (empClearBtnR) empClearBtnR.style.display = 'none'; }
+    }
+    if (fRev) {
+      if (hadRev) {
+        fRev.value = r.revenue; _updateFieldLabel('rev-amt-label', r.revenue);
+        var revClearBtnR1 = document.getElementById('rev-clear'); if (revClearBtnR1) revClearBtnR1.style.display = 'flex';
+        var revDollarR1 = document.getElementById('rev-dollar'); if (revDollarR1) revDollarR1.style.color = '#fff';
+      } else {
+        fRev.value = ''; fRev.classList.remove('ai-filled'); _updateFieldLabel('rev-amt-label', '');
+        var revClearBtnR2 = document.getElementById('rev-clear'); if (revClearBtnR2) revClearBtnR2.style.display = 'none';
+        var revDollarR2 = document.getElementById('rev-dollar'); if (revDollarR2) revDollarR2.style.color = '#717378';
+      }
+    }
+    if (typeof _updateIVHint === 'function') _updateIVHint();
+    if (hadEmp || hadRev) {
+      autoSelectIV();
     } else if (r.iv > 0) {
-      // No employee count but IV was scored (e.g. keyword inference) — select directly
-      if (fEmp) { fEmp.value = ''; fEmp.classList.remove('ai-filled'); }
-      _updateFieldLabel('emp-count-label', '');
-      var empClearBtn = document.getElementById('emp-clear'); if (empClearBtn) empClearBtn.style.display = 'none';
+      // No inputs but IV was scored (e.g. keyword inference) — select directly
       var ivOpt = document.querySelector('[data-group="iv"][data-val="' + r.iv + '"]');
       if (ivOpt) {
         document.querySelectorAll('[data-group="iv"]').forEach(function(o) { o.classList.remove('selected'); });
@@ -9174,10 +9270,7 @@
         labels.iv = r.ivLabel || ivOpt.dataset.label || '';
       }
     } else {
-      if (fEmp) { fEmp.value = ''; fEmp.classList.remove('ai-filled'); }
-      _updateFieldLabel('emp-count-label', '');
-      var empClearBtn2 = document.getElementById('emp-clear'); if (empClearBtn2) empClearBtn2.style.display = 'none';
-      autoSelectIV('');
+      autoSelectIV();
     }
     // Unlock IV tile since we have form data loaded
     var ivCardRes = document.getElementById('card-iv');
@@ -9415,7 +9508,7 @@
     var priority = r.priority || _tierDisplay(r.pillClass || (r.score>=7?'ag':r.score>=4?'cp':'asst')).priority;
 
     var text =
-      'Assigned To |' + r.owner + '| — AG\'s IPA Report Card — Score ' + r.score + '/9 — ' + r.date + ' at ' + r.time + '\n\n' +
+      'Assigned To |' + r.owner + '| — IPA Score Card — Score ' + r.score + '/9 — ' + r.date + ' at ' + r.time + '\n\n' +
       'Score: ' + r.score + '/9  ' + stars + '  |  Assigned To: ' + r.owner + '\n' +
       'Priority: ' + priority + '\n' +
       'Entered By: ' + (r.rep || '—') + '\n' +
@@ -11849,9 +11942,21 @@
         if (!isNaN(empNum) && empNum > 0) {
           if (!empEl.value.trim()) { empEl.value = empNum; empEl.classList.add('ai-filled'); }
           _updateFieldLabel('emp-count-label', empEl.value);
-          if (scores.iv === null) autoSelectIV(empEl.value.trim() || empNum);
         }
       }
+      // Populate revenue field if AI found it and rep hasn't typed something there
+      var revEl = document.getElementById('f-revenue');
+      var aiRevStrFromResult = (result && result.revenue) ? String(result.revenue).trim() : '';
+      if (revEl && aiRevStrFromResult && !revEl.value.trim()) {
+        revEl.value = aiRevStrFromResult;
+        revEl.classList.add('ai-filled');
+        _updateFieldLabel('rev-amt-label', aiRevStrFromResult);
+        var revClearBtnAI = document.getElementById('rev-clear'); if (revClearBtnAI) revClearBtnAI.style.display = 'flex';
+        var revDollarAI = document.getElementById('rev-dollar'); if (revDollarAI) revDollarAI.style.color = '#fff';
+      }
+      if (typeof _updateIVHint === 'function') _updateIVHint();
+      // Recompute IV from current input state (may now include revenue)
+      if (scores.iv === null) autoSelectIV();
       if (scores.iv === null) {
         var combined = ((result.industry || '') + ' ' + (result.blurb || '') + ' ' + (result.companyName || company || '')).toLowerCase();
         var inferredIV = null, inferredLabel = '';
@@ -11883,19 +11988,33 @@
         _researchData.ivYourScore = repIV; _researchData.ivYourTier = ivScoreToTier(repIV);
         _researchData.ivAiScore   = aiIVScore; _researchData.ivAiTier = ivScoreToTier(aiIVScore);
         _researchData.ivState     = 'accepted';
-        // Force-apply AI score: select the correct tile and mark accepted
-        var aiOpt = document.querySelector('[data-group="iv"][data-val="' + aiIVScore + '"]');
-        if (aiOpt) {
-          document.querySelectorAll('[data-group="iv"]').forEach(function(o) { o.classList.remove('selected'); });
-          aiOpt.classList.add('selected');
-          scores.iv = aiIVScore;
-          // Build label with employee count + revenue boost note when applicable
-          var labelParts = [aiEmpCount + ' employees'];
-          if (aiComposite.source === 'revenue') labelParts.push('boosted by revenue ' + (aiRevStr || ''));
-          labels.iv = aiOpt.dataset.label + ' — ' + labelParts.join(', ');
-          var ivOpts = document.querySelector('#card-iv .options');
-          if (ivOpts) ivOpts.classList.add('amount-locked');
-          calculate(); checkCopyReady();
+        // Force-apply via autoSelectIV which now reads both inputs and sets the ★ driver indicator
+        autoSelectIV();
+        // Make sure score reflects AI's composite (in case rep had nothing typed before research)
+        if (scores.iv !== aiIVScore) {
+          var aiOpt = document.querySelector('[data-group="iv"][data-val="' + aiIVScore + '"]');
+          if (aiOpt) {
+            document.querySelectorAll('[data-group="iv"]').forEach(function(o) { o.classList.remove('selected'); });
+            aiOpt.classList.add('selected');
+            scores.iv = aiIVScore;
+            var labelParts = [aiEmpCount + ' employees'];
+            if (aiComposite.source === 'revenue') labelParts.push('boosted by revenue ' + (aiRevStr || ''));
+            labels.iv = aiOpt.dataset.label + ' — ' + labelParts.join(', ');
+            var ivOpts = document.querySelector('#card-iv .options');
+            if (ivOpts) ivOpts.classList.add('amount-locked');
+            // Sync ★ driver indicators with AI's composite source (override autoSelectIV's earlier mark)
+            var empStarFb = document.getElementById('emp-driver-star');
+            var revStarFb = document.getElementById('rev-driver-star');
+            if (empStarFb) empStarFb.style.display = 'none';
+            if (revStarFb) revStarFb.style.display = 'none';
+            if (aiComposite.source === 'revenue' && revStarFb) revStarFb.style.display = '';
+            else if (aiComposite.source === 'headcount' && empStarFb) empStarFb.style.display = '';
+            else if (aiComposite.source === 'both') {
+              if (empStarFb) empStarFb.style.display = '';
+              if (revStarFb) revStarFb.style.display = '';
+            }
+            calculate(); checkCopyReady();
+          }
         }
         _ivAccepted = true;
         var ivBadge = document.getElementById('iv-ai-badge');
@@ -12776,6 +12895,7 @@
       iv: scores.iv, pv: scores.pv, av: scores.av,
       ivLabel: labels.iv, pvLabel: labels.pv, avLabel: labels.av,
       employees: document.getElementById('f-employees').value || '',
+          revenue: document.getElementById('f-revenue') ? document.getElementById('f-revenue').value || '' : '',
       budgetAmount: document.getElementById('f-budget').value || '',
       pillClass: pillClass, rep: window._currentRep || '',
       assignOverride: _assignOverride || '',
@@ -13332,7 +13452,7 @@
       '<style>'+_pdfStyles()+'</style></head><body>' +
       headerHtml + contentHtml +
       '<div class="pdf-footer"><table><tr>' +
-        '<td style="text-align:left;">'+(ipaNum?ipaNum+' &middot; ':'')+'AG&apos;s IPA Report Card &middot; '+footerLabel+' &middot; Confidential</td>' +
+        '<td style="text-align:left;">'+(ipaNum?ipaNum+' &middot; ':'')+'IPA Score Card &middot; '+footerLabel+' &middot; Confidential</td>' +
         '<td style="text-align:right;">Page 1</td>' +
       '</tr></table></div>' +
       '</body></html>';
@@ -16029,7 +16149,7 @@
         hotBannerHtml +
         '<div style="padding:20px 24px 4px;">' + headerHtml + contentHtml + '</div>' +
         '<div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:10px 18px;text-align:center;">' +
-          '<p style="margin:0;font-size:11px;color:#64748b;">'+(ipaNum?ipaNum+' &middot; ':'')+'AG&apos;s IPA Report Card &middot; '+footerLabel+' &middot; Confidential</p>' +
+          '<p style="margin:0;font-size:11px;color:#64748b;">'+(ipaNum?ipaNum+' &middot; ':'')+'IPA Score Card &middot; '+footerLabel+' &middot; Confidential</p>' +
         '</div>' +
       '</div>';
 
@@ -17136,7 +17256,7 @@
     var isHot   = document.getElementById('hot-btn')._isHot;
     var text =
       (isHot ? '🔥 **HOT** ' : '') +
-      'Assigned To |' + owner + '| — AG\'s IPA Report Card — Score ' + total + '/9 — ' + date + ' at ' + time + '\n\n' +
+      'Assigned To |' + owner + '| — IPA Score Card — Score ' + total + '/9 — ' + date + ' at ' + time + '\n\n' +
       (isHot ? '🔥 HOT — NEEDS IMMEDIATE ATTENTION\n\n' : '') +
       'Score: ' + total + '/9  ' + stars + '  |  Assigned To: ' + owner + '\n' +
       'Priority: ' + priority + '\nEntered By: ' + (window._currentRep||'—') + '\n' +
