@@ -3491,32 +3491,34 @@
         <span class="card-num">01</span>
         <span class="card-title"><span data-lk="lk_iv_title" class="editable-text">Implied Value — Size</span><span class="req-star">★</span></span><span id="iv-ai-badge" style="display:none;font-size:9px;font-weight:600;letter-spacing:0.04em;color:#5DCAA5;background:rgba(93,202,165,0.12);border:1px solid rgba(93,202,165,0.3);border-radius:3px;padding:1px 5px;margin-left:6px;vertical-align:middle;">AI</span>
         <span class="edit-badge">editing</span>
+        <div class="header-toggle-wrapper">
+          <span id="iv-header-hint" style="font-size:10px;color:#6b6c70;font-style:italic;white-space:nowrap;"><span data-lk="lk_iv_subhint" class="editable-text">Either input · higher tier wins</span></span>
+        </div>
       </div>
       <div class="card-body">
         <div class="card-hint"><span data-lk="lk_iv_hint" class="editable-text">What best describes this customer?</span></div>
         <div class="edit-hint">Click any label or detail to edit it.</div>
-        <div style="display:flex;gap:8px;margin-bottom:8px;align-items:flex-end;">
-          <div style="flex:1;min-width:0;">
-            <label class="header-toggle-label" id="emp-count-label" style="display:block;margin-bottom:4px;font-size:9px;"><span data-lk="lk_emp_label" class="editable-text">Employee Count</span> <span id="emp-driver-star" style="display:none;color:#B8BBCC;font-size:11px;font-weight:700;">★</span></label>
-            <div style="position:relative;">
+        <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
+          <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0;">
+            <label class="header-toggle-label" id="emp-count-label" style="margin-bottom:0;flex-shrink:0;"><span data-lk="lk_emp_label" class="editable-text">Employees</span> <span id="emp-driver-star" style="display:none;color:#B8BBCC;font-size:11px;font-weight:700;">★</span></label>
+            <div style="position:relative;flex:1;min-width:0;">
               <input class="field-input" type="number" id="f-employees" placeholder="e.g. 120" min="1" max="9999999"
                 style="width:100%;padding:5px 24px 5px 8px;font-size:12px;"
-                onkeydown="if(this.classList.contains('ai-filled')){event.preventDefault();var _el=this;aiConfirm('The employee count was filled in by AI. Are you sure you want to change it?').then(function(ok){if(ok){_el.classList.remove('ai-filled');_el.focus();}});}" oninput="this.classList.remove('ai-filled');autoSelectIV();_updateFieldLabel('emp-count-label',this.value);document.getElementById('emp-clear').style.display=this.value?'flex':'none';_updateIVHint();">
-              <button id="emp-clear" onclick="document.getElementById('f-employees').value='';autoSelectIV();_updateFieldLabel('emp-count-label','');this.style.display='none';_updateIVHint();" style="display:none;position:absolute;right:5px;top:50%;transform:translateY(-50%);background:none;border:none;color:#f87171;font-size:11px;cursor:pointer;padding:2px 3px;line-height:1;align-items:center;justify-content:center;">✕</button>
+                onkeydown="if(this.classList.contains('ai-filled')){event.preventDefault();var _el=this;aiConfirm('The employee count was filled in by AI. Are you sure you want to change it?').then(function(ok){if(ok){_el.classList.remove('ai-filled');_el.focus();}});}" oninput="this.classList.remove('ai-filled');autoSelectIV();_updateFieldLabel('emp-count-label',this.value);document.getElementById('emp-clear').style.display=this.value?'flex':'none';">
+              <button id="emp-clear" onclick="document.getElementById('f-employees').value='';autoSelectIV();_updateFieldLabel('emp-count-label','');this.style.display='none';" style="display:none;position:absolute;right:5px;top:50%;transform:translateY(-50%);background:none;border:none;color:#f87171;font-size:11px;cursor:pointer;padding:2px 3px;line-height:1;align-items:center;justify-content:center;">✕</button>
             </div>
           </div>
-          <div style="flex:1;min-width:0;">
-            <label class="header-toggle-label" id="rev-amt-label" style="display:block;margin-bottom:4px;font-size:9px;"><span data-lk="lk_rev_label" class="editable-text">Annual Revenue</span> <span id="rev-driver-star" style="display:none;color:#B8BBCC;font-size:11px;font-weight:700;">★</span></label>
-            <div style="position:relative;">
+          <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0;">
+            <label class="header-toggle-label" id="rev-amt-label" style="margin-bottom:0;flex-shrink:0;"><span data-lk="lk_rev_label" class="editable-text">Revenue</span> <span id="rev-driver-star" style="display:none;color:#B8BBCC;font-size:11px;font-weight:700;">★</span></label>
+            <div style="position:relative;flex:1;min-width:0;">
               <span id="rev-dollar" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;color:#717378;pointer-events:none;">$</span>
-              <input class="field-input" type="text" id="f-revenue" placeholder="e.g. 38M or 38,000,000"
+              <input class="field-input" type="text" id="f-revenue" placeholder="e.g. 38M"
                 style="width:100%;padding:5px 24px 5px 18px;font-size:12px;"
-                onkeydown="if(this.classList.contains('ai-filled')){event.preventDefault();var _el=this;aiConfirm('The revenue was filled in by AI. Are you sure you want to change it?').then(function(ok){if(ok){_el.classList.remove('ai-filled');_el.focus();}});}" oninput="this.classList.remove('ai-filled');autoSelectIV();_updateFieldLabel('rev-amt-label',this.value);document.getElementById('rev-clear').style.display=this.value?'flex':'none';document.getElementById('rev-dollar').style.color=this.value?'#fff':'#717378';_updateIVHint();">
-              <button id="rev-clear" onclick="document.getElementById('f-revenue').value='';autoSelectIV();_updateFieldLabel('rev-amt-label','');this.style.display='none';document.getElementById('rev-dollar').style.color='#717378';_updateIVHint();" style="display:none;position:absolute;right:5px;top:50%;transform:translateY(-50%);background:none;border:none;color:#f87171;font-size:11px;cursor:pointer;padding:2px 3px;line-height:1;align-items:center;justify-content:center;">✕</button>
+                onkeydown="if(this.classList.contains('ai-filled')){event.preventDefault();var _el=this;aiConfirm('The revenue was filled in by AI. Are you sure you want to change it?').then(function(ok){if(ok){_el.classList.remove('ai-filled');_el.focus();}});}" oninput="this.classList.remove('ai-filled');autoSelectIV();_updateFieldLabel('rev-amt-label',this.value);document.getElementById('rev-clear').style.display=this.value?'flex':'none';document.getElementById('rev-dollar').style.color=this.value?'#fff':'#717378';">
+              <button id="rev-clear" onclick="document.getElementById('f-revenue').value='';autoSelectIV();_updateFieldLabel('rev-amt-label','');this.style.display='none';document.getElementById('rev-dollar').style.color='#717378';" style="display:none;position:absolute;right:5px;top:50%;transform:translateY(-50%);background:none;border:none;color:#f87171;font-size:11px;cursor:pointer;padding:2px 3px;line-height:1;align-items:center;justify-content:center;">✕</button>
             </div>
           </div>
         </div>
-        <div id="iv-hint-line" style="font-size:10px;color:#6b6c70;text-align:center;margin-bottom:8px;font-style:italic;">Either input scores the tile · higher tier wins</div>
         <div class="options">
           <button class="option" data-group="iv" data-val="1" data-label="Small / Local Business (49 Or Fewer Employees)" onclick="optionClick(event, this)">
             <div class="option-radio"></div>
@@ -6244,10 +6246,10 @@
     }
   }
 
-  // Toggle the helper hint line based on whether a valid score is set.
+  // Toggle the header hint based on whether a valid score is set.
   // Visible whenever no tier is selected, so users see guidance even with unparseable input.
   function _updateIVHint() {
-    var hint = document.getElementById('iv-hint-line');
+    var hint = document.getElementById('iv-header-hint');
     if (hint) hint.style.display = (scores.iv == null) ? '' : 'none';
   }
 
