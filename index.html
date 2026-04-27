@@ -20,6 +20,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AG's IPA Report Card</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=Inter:wght@300;400;500&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<!-- Maps API key loaded dynamically from server -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -4147,6 +4148,14 @@
     av: {
       new:      { tier1: 0, tier2: 500,   tier3: 10000 },
       existing: { tier1: 0, tier2: 5000,  tier3: 50000 }
+    },
+    // Implied Value uses TWO parallel signals; final IV = max(headcount tier, revenue tier).
+    // Revenue is ignored (not penalized) when AI didn't find it.
+    // Brackets here are start-of-tier values (tier1=0 means tier1 covers 0..tier2-1, etc.)
+    // Future Admin UI can expose these like the PV/AV pattern; see _scoringConfig load/save logic.
+    iv: {
+      headcount: { tier1: 0, tier2: 50,        tier3: 500       },  // <50 / 50-499 / 500+
+      revenue:   { tier1: 0, tier2: 5000000,   tier3: 50000000  }   // <$5M / $5M-$50M / $50M+
     }
   };
 
@@ -6234,14 +6243,20 @@
       checkCopyReady();
       return;
     }
-    var targetVal = n <= 49 ? 1 : n <= 499 ? 2 : 3;
+    // Composite scoring: take the higher tier between headcount and revenue (if AI found revenue).
+    // Falls back to headcount-only when revenue is unknown.
+    var composite = compositeIVScore(n, (_researchData && _researchData.revenue) || '');
+    var targetVal = composite.score || empCountToIVScore(n) || 1;
     var targetOption = document.querySelector('[data-group="iv"][data-val="' + targetVal + '"]');
     if (targetOption) {
       targetOption.classList.add('selected');
       scores.iv = targetVal;
       labels.iv = targetOption.dataset.label;
-      // Append employee count to label for copy/sheet
-      labels.iv = labels.iv + ' — ' + n + ' employees';
+      // Append employee count to label for copy/sheet; note revenue boost when applicable
+      var labelExtras = [n + ' employees'];
+      if (composite.source === 'revenue') labelExtras.push('boosted by revenue');
+      else if (composite.source === 'both') labelExtras.push('matches revenue');
+      labels.iv = labels.iv + ' — ' + labelExtras.join(', ');
       if (ivOpts) ivOpts.classList.add('amount-locked');
       calculate();
       checkCopyReady();
@@ -10655,12 +10670,65 @@
   }
 
   // ── IV tier mapping ─────────────────────────────────────────
+  // Step 1 (Apr 2026): IV is now a composite of headcount AND revenue.
+  // Score = max(headcount tier, revenue tier). Revenue is ignored when unknown.
+  // Brackets live in _scoringConfig.iv so they're future-editable from Admin.
+
+  // Parse revenue strings like "$38M", "$5.2 billion", "~$15M", "$2.5B", "500K", "$1,200,000"
+  // Returns a Number (USD) or null if unparseable. Conservative — better to return null than
+  // guess wrong, because null means "fall back to headcount" rather than "score wrong tier."
+  function parseRevenueToNumber(revStr) {
+    if (!revStr) return null;
+    var s = String(revStr).toLowerCase().trim();
+    if (!s || s === 'unknown' || s === 'n/a' || s === 'na' || s === 'private') return null;
+    // Strip currency symbols, commas, "approximately", etc. but keep the number + scale unit
+    s = s.replace(/[\$,€£¥]/g, '').replace(/~|approximately|approx\.?|about|over|under|less than|more than|>=?|<=?/g, ' ').trim();
+    // Match a number (with optional decimal) followed by an optional scale unit (k/m/b/billion/million/thousand)
+    var m = s.match(/(-?\d+(?:\.\d+)?)\s*(billion|million|thousand|b|m|k)?/);
+    if (!m) return null;
+    var num = parseFloat(m[1]);
+    if (isNaN(num)) return null;
+    var unit = (m[2] || '').toLowerCase();
+    if (unit === 'billion' || unit === 'b') num *= 1e9;
+    else if (unit === 'million' || unit === 'm') num *= 1e6;
+    else if (unit === 'thousand' || unit === 'k') num *= 1e3;
+    // No unit + small number is suspicious — "$5" probably isn't $5 of revenue.
+    // Treat unitless numbers under 1,000 as "definitely not revenue" → null.
+    else if (num < 1000) return null;
+    return num;
+  }
+
+  // Headcount tier from raw employee count. Reads brackets from _scoringConfig.iv.headcount.
   function empCountToIVScore(empCount) {
     var n = parseInt(String(empCount).replace(/[^0-9]/g, ''), 10);
-    if (isNaN(n)) return null;
-    if (n <= 49)  return 1;
-    if (n <= 499) return 2;
+    if (isNaN(n) || n <= 0) return null;
+    var b = (_scoringConfig.iv && _scoringConfig.iv.headcount) ? _scoringConfig.iv.headcount : { tier1:0, tier2:50, tier3:500 };
+    if (n < b.tier2) return 1;
+    if (n < b.tier3) return 2;
     return 3;
+  }
+
+  // Revenue tier from a numeric USD value. Returns null if value is null/invalid.
+  function revenueToIVScore(revNum) {
+    if (revNum == null || isNaN(revNum) || revNum <= 0) return null;
+    var b = (_scoringConfig.iv && _scoringConfig.iv.revenue) ? _scoringConfig.iv.revenue : { tier1:0, tier2:5000000, tier3:50000000 };
+    if (revNum < b.tier2) return 1;
+    if (revNum < b.tier3) return 2;
+    return 3;
+  }
+
+  // Composite IV — take the higher of headcount and revenue tiers. Either can be null.
+  // Returns { score, source } where source is 'headcount', 'revenue', 'both', or null.
+  function compositeIVScore(empCount, revStr) {
+    var hScore = empCountToIVScore(empCount);
+    var rNum   = parseRevenueToNumber(revStr);
+    var rScore = revenueToIVScore(rNum);
+    if (hScore == null && rScore == null) return { score: null, source: null };
+    if (hScore == null) return { score: rScore, source: 'revenue' };
+    if (rScore == null) return { score: hScore, source: 'headcount' };
+    if (rScore > hScore) return { score: rScore, source: 'revenue' };
+    if (hScore > rScore) return { score: hScore, source: 'headcount' };
+    return { score: hScore, source: 'both' };
   }
 
   function ivScoreToTier(score) {
@@ -11806,7 +11874,12 @@
       }
       var aiEmpCount = parseInt(String(result.employees || '').replace(/[^0-9]/g, ''), 10);
       if (!isNaN(aiEmpCount)) {
-        var aiIVScore = empCountToIVScore(aiEmpCount);
+        // Composite scoring: take the higher tier between headcount and revenue.
+        // Revenue may have arrived earlier in this _applyIV call (P2 result includes it),
+        // so check both result.revenue and _researchData.revenue (whichever is available).
+        var aiRevStr = (result && result.revenue) || (_researchData && _researchData.revenue) || '';
+        var aiComposite = compositeIVScore(aiEmpCount, aiRevStr);
+        var aiIVScore = aiComposite.score || empCountToIVScore(aiEmpCount);
         _researchData.ivYourScore = repIV; _researchData.ivYourTier = ivScoreToTier(repIV);
         _researchData.ivAiScore   = aiIVScore; _researchData.ivAiTier = ivScoreToTier(aiIVScore);
         _researchData.ivState     = 'accepted';
@@ -11816,7 +11889,10 @@
           document.querySelectorAll('[data-group="iv"]').forEach(function(o) { o.classList.remove('selected'); });
           aiOpt.classList.add('selected');
           scores.iv = aiIVScore;
-          labels.iv = aiOpt.dataset.label + ' — ' + aiEmpCount + ' employees';
+          // Build label with employee count + revenue boost note when applicable
+          var labelParts = [aiEmpCount + ' employees'];
+          if (aiComposite.source === 'revenue') labelParts.push('boosted by revenue ' + (aiRevStr || ''));
+          labels.iv = aiOpt.dataset.label + ' — ' + labelParts.join(', ');
           var ivOpts = document.querySelector('#card-iv .options');
           if (ivOpts) ivOpts.classList.add('amount-locked');
           calculate(); checkCopyReady();
@@ -11824,6 +11900,29 @@
         _ivAccepted = true;
         var ivBadge = document.getElementById('iv-ai-badge');
         if (ivBadge) ivBadge.style.display = 'inline';
+      } else if (scores.iv === null) {
+        // Edge case: no employee count from AI, but maybe revenue can still classify.
+        // Only fires if scores.iv is still null (i.e. keyword inference above didn't match).
+        var aiRevOnly = (result && result.revenue) || (_researchData && _researchData.revenue) || '';
+        var revOnlyScore = revenueToIVScore(parseRevenueToNumber(aiRevOnly));
+        if (revOnlyScore !== null) {
+          var revOpt = document.querySelector('[data-group="iv"][data-val="' + revOnlyScore + '"]');
+          if (revOpt) {
+            document.querySelectorAll('[data-group="iv"]').forEach(function(o) { o.classList.remove('selected'); });
+            revOpt.classList.add('selected');
+            scores.iv = revOnlyScore;
+            labels.iv = revOpt.dataset.label + ' — revenue ' + aiRevOnly + ' (no employee count available)';
+            _researchData.ivAiScore = revOnlyScore;
+            _researchData.ivAiTier  = ivScoreToTier(revOnlyScore);
+            _researchData.ivState   = 'accepted';
+            _ivAccepted = true;
+            var ivBadgeRev = document.getElementById('iv-ai-badge');
+            if (ivBadgeRev) ivBadgeRev.style.display = 'inline';
+            calculate(); checkCopyReady();
+          }
+        } else {
+          _researchData.ivState = 'none';
+        }
       } else { _researchData.ivState = 'none'; }
       // Unlock IV tile once AI has applied a score
       if (scores.iv !== null) {
