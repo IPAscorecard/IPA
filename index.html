@@ -12037,19 +12037,33 @@
           _updateFieldLabel('emp-count-label', empEl.value);
         }
       }
-      // Populate revenue field if AI found it and rep hasn't typed something there
+      // Populate revenue field if AI found it and rep hasn't typed something there.
+      // Only accept values the parser can actually convert to a tier — junk strings
+      // like "Revenue not disclosed" or "TBD" are dropped to avoid clutter.
       var revEl = document.getElementById('f-revenue');
       var aiRevStrFromResult = (result && result.revenue) ? String(result.revenue).trim() : '';
+      var revWasAiFilled = false;
       if (revEl && aiRevStrFromResult && !revEl.value.trim()) {
-        revEl.value = aiRevStrFromResult;
-        revEl.classList.add('ai-filled');
-        _updateFieldLabel('rev-amt-label', aiRevStrFromResult);
-        var revClearBtnAI = document.getElementById('rev-clear'); if (revClearBtnAI) revClearBtnAI.style.display = 'flex';
-        var revDollarAI = document.getElementById('rev-dollar'); if (revDollarAI) revDollarAI.style.color = '#fff';
+        var revIsParseable = (typeof parseRevenueToNumber === 'function') &&
+          (parseRevenueToNumber(aiRevStrFromResult) !== null);
+        if (revIsParseable) {
+          revEl.value = aiRevStrFromResult;
+          revEl.classList.add('ai-filled');
+          _updateFieldLabel('rev-amt-label', aiRevStrFromResult);
+          var revClearBtnAI = document.getElementById('rev-clear'); if (revClearBtnAI) revClearBtnAI.style.display = 'flex';
+          var revDollarAI = document.getElementById('rev-dollar'); if (revDollarAI) revDollarAI.style.color = '#fff';
+          revWasAiFilled = true;
+        } else {
+          // Unparseable revenue string — keep it out of the input but still record raw
+          // value in researchData so the AI tab can show it for context.
+          _researchData.revenue = aiRevStrFromResult;
+        }
       }
       if (typeof _updateIVHint === 'function') _updateIVHint();
-      // Recompute IV from current input state (may now include revenue)
-      if (scores.iv === null) autoSelectIV();
+      // Recompute IV from current input state. Run unconditionally when AI just filled
+      // revenue, since the new signal may boost the tier above the rep's current selection
+      // (composite rule: take the higher tier between headcount and revenue).
+      if (scores.iv === null || revWasAiFilled) autoSelectIV();
       if (scores.iv === null) {
         var combined = ((result.industry || '') + ' ' + (result.blurb || '') + ' ' + (result.companyName || company || '')).toLowerCase();
         var inferredIV = null, inferredLabel = '';
@@ -12071,6 +12085,12 @@
         }
       }
       var aiEmpCount = parseInt(String(result.employees || '').replace(/[^0-9]/g, ''), 10);
+      // If AI didn't return employees but the rep already typed one, fall back to that
+      // so composite can still factor employees into AI's composite "view" of the score.
+      if (isNaN(aiEmpCount) && empEl && empEl.value) {
+        var repEmpFallback = parseInt(String(empEl.value).replace(/[^0-9]/g, ''), 10);
+        if (!isNaN(repEmpFallback)) aiEmpCount = repEmpFallback;
+      }
       if (!isNaN(aiEmpCount)) {
         // Composite scoring: take the higher tier between headcount and revenue.
         // Revenue may have arrived earlier in this _applyIV call (P2 result includes it),
