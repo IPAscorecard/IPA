@@ -9174,7 +9174,13 @@
       _researchData.companyIntel   = rd.companyIntel || '';
       _researchData.companyTalkingPoints = Array.isArray(rd.companyTalkingPoints) ? rd.companyTalkingPoints : [];
       _researchData.companyLinkedIn= rd.companyLinkedIn || '';
+      _researchData.contactLinkedIn= rd.contactLinkedIn || '';
+      _researchData.contactPerson  = rd.contactPerson  || null;
       _researchData.decisionMakers = rd.decisionMakers  || null;
+      _researchData.keyPeople      = Array.isArray(rd.keyPeople) ? rd.keyPeople : [];
+      _researchData.socialMedia    = (rd.socialMedia && typeof rd.socialMedia === 'object') ? rd.socialMedia : {};
+      _researchData.searchCostUSD  = parseFloat(rd.searchCostUSD) || 0;
+      _researchData.searchDuration = rd.searchDuration || null;
       // IV check state is transient — reset
       _researchData.ivState = 'none';
       _researchData.ivYourTier = '';
