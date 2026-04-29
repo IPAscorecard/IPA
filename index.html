@@ -16502,17 +16502,32 @@
     var dm = _researchData.decisionMakers || {};
     var kp = _researchData.keyPeople || [];
     var existingNames = [];
-    ['ownerExec','marketing','procurement'].forEach(function(k){ if (dm[k] && dm[k].name) existingNames.push(dm[k].name); });
+    // Include all 4 DM categories (eventManager was missing before)
+    ['ownerExec','marketing','procurement','eventManager'].forEach(function(k){ if (dm[k] && dm[k].name) existingNames.push(dm[k].name); });
     kp.forEach(function(p){ if (p.name) existingNames.push(p.name); });
     var existingStr = existingNames.length ? existingNames.join(', ') : 'none';
+    // Use the legal company name if AI discovered one — way more disambiguating
+    // for searches than the rep's typed shorthand (e.g. "Cobot" → "Collaborative Robotics Inc.").
+    var legalName = (_researchData.companyName || '').trim();
+    var searchName = legalName && legalName.length > company.length + 4 ? legalName : company;
+    // Sanitize for safe injection into search query strings
+    var safeSearchName = searchName.replace(/["\\\n\r]/g, ' ').trim() || company;
     var prompt = [
-      'You are a B2B sales research assistant for QLP, a promotional products company. Your job is to find decision makers who would approve or influence purchases of branded merchandise, company swag, event giveaways, or employee recognition items.',
-      'Search LinkedIn for key people at ' + company + ' (' + domain + ') who hold roles that typically purchase or approve promotional products at their organization.',
-      'Target titles in this priority order: 1. Marketing Director / VP Marketing / Chief Marketing Officer  2. Events Manager / Event Coordinator / Tradeshow Manager  3. HR Director / People Operations / Employee Experience  4. Office Manager / Executive Assistant / Operations Manager  5. Procurement / Purchasing Manager / Brand Manager',
-      'Use 1-2 searches max. For each person found return their full name, exact title, LinkedIn URL, and email if publicly available.',
-      'Return ONLY valid JSON \u2014 no markdown:',
-      '{"newPeople":[{"name":"","title":"","linkedin":"https://linkedin.com/in/... or empty","email":"","dept":"Marketing|Events|HR|Operations|Procurement","confidence":"high|medium|low"}]}',
-      'Rules: Return up to 5 people maximum. Only include people NOT already in this list: ' + existingStr + '. If no relevant people found return: {"newPeople":[]}. Reject anyone with a title unrelated to purchasing decisions. Prefer high-confidence matches with verifiable LinkedIn profiles.'
+      'Find decision-maker contacts at ' + safeSearchName + ' (' + domain + ') for QLP, a promotional products company. We sell branded merchandise, swag, event giveaways, and employee recognition items.',
+      'Use 2-3 LinkedIn searches with this exact syntax:',
+      '  (1) site:linkedin.com/in "' + safeSearchName + '" ("Marketing Director" OR "VP Marketing" OR "CMO" OR "Brand Manager")',
+      '  (2) site:linkedin.com/in "' + safeSearchName + '" ("Events Manager" OR "Tradeshow" OR "Event Coordinator" OR "Conference")',
+      '  (3) site:linkedin.com/in "' + safeSearchName + '" ("HR Director" OR "People Operations" OR "Employee Experience" OR "Office Manager")',
+      'Priority categories (any are valid promo product buyers): Marketing/Brand · Events/Tradeshow · HR/People Ops · Procurement/Purchasing · Operations/Office Manager.',
+      'Rules:',
+      '  · Return up to 5 people total, prioritizing role diversity (don\'t return 5 marketers).',
+      '  · LinkedIn URLs MUST come verbatim from search results — never fabricate or guess.',
+      '  · Email: leave EMPTY unless explicitly stated in a search result. Do NOT construct emails from name + domain.',
+      '  · Do not include anyone whose name appears in this list: ' + existingStr + '.',
+      '  · Reject anyone whose role is unrelated to purchasing (e.g. engineers, developers, sales reps).',
+      'Return ONLY valid JSON:',
+      '{"newPeople":[{"name":"","title":"","linkedin":"","email":"","dept":"Marketing|Events|HR|Operations|Procurement","confidence":"high|medium|low"}]}',
+      'If no new people found: {"newPeople":[]}'
     ].join('\n');
     fetch(GS_URL, { method: 'POST', body: JSON.stringify({ action: 'runResearch', prompt: prompt, rep: window._currentRep || '' }) })
     .then(function(r){ return r.text(); })
@@ -16545,8 +16560,22 @@
             confidence: p.confidence || 'medium'
           };
         });
-        var existingLower = existingNames.map(function(n){ return n.toLowerCase(); });
-        cleaned = cleaned.filter(function(p){ return existingLower.indexOf(p.name.toLowerCase()) === -1; });
+        // Dedup against existing names. Use first+last name matching to catch
+        // variants like "Sarah J. Smith" vs "Sarah Smith".
+        function _nameKey(s) {
+          var parts = String(s||'').toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(Boolean);
+          if (parts.length < 2) return parts.join(' ');
+          return parts[0] + ' ' + parts[parts.length - 1]; // first + last
+        }
+        var existingKeys = existingNames.map(_nameKey);
+        cleaned = cleaned.filter(function(p){
+          var k = _nameKey(p.name);
+          if (!k) return false;
+          // Also dedup within the new batch itself (in case AI returns the same person twice)
+          if (existingKeys.indexOf(k) !== -1) return false;
+          existingKeys.push(k);
+          return true;
+        });
         if (cleaned.length) {
           _researchData.keyPeople = (_researchData.keyPeople || []).concat(cleaned);
           // If opened from archive record, persist back to cache
