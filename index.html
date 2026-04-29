@@ -12241,39 +12241,35 @@
     // ── PHASE 1 — LinkedIn + Events ──────────────────────────────────
     var emailPrefix = (email && email.indexOf('@') !== -1) ? email.split('@')[0] : '';
     var p1Lines = [
-      "Find LinkedIn profiles and upcoming events for this company for QLP (promotional products). Return ONLY valid JSON, no markdown.",
-      "Company: " + company + " | Domain: " + searchDomain + " | Today: " + todayStr
+      "Find LinkedIn profiles and events for " + company + " (" + searchDomain + "). QLP sells promotional products. Today: " + todayStr + ". Return only valid JSON."
     ];
-    // Contact search instruction — escalating specificity when we have a name
     if (contactName) {
-      var contactHints = ["CONTACT LINKEDIN SEARCH — high priority separate task."];
-      contactHints.push("Contact signals: Name: " + contactName + (email ? " | Email: " + email : '') + (emailPrefix ? " | Email prefix (likely LinkedIn slug): " + emailPrefix : '') + " | Company: " + company + " | Domain: " + searchDomain);
-      contactHints.push("Search strategy — try in order until a confident match is found:");
-      contactHints.push("  Attempt 1: Search LinkedIn for \"" + contactName + "\" \"" + company + "\"");
-      if (emailPrefix) contactHints.push("  Attempt 2: Try linkedin.com/in/" + emailPrefix + " — email prefix is often the LinkedIn slug");
-      contactHints.push("  Attempt 3: Search site:linkedin.com/in \"" + contactName + "\" \"" + searchDomain + "\"");
-      contactHints.push("A match is valid ONLY if both the name AND company/domain align. Do not return a profile if only the name matches.");
-      p1Lines.push(contactHints.join("\n"));
+      p1Lines.push(
+        "CONTACT: " + contactName + (email ? " <" + email + ">" : "") + ". Search LinkedIn for this person at " + company + "." +
+        (emailPrefix ? " Try linkedin.com/in/" + emailPrefix + " (email prefix often = slug)." : "") +
+        " Match requires BOTH name AND company/domain alignment."
+      );
     }
     p1Lines.push(
-      "Use exactly 3 searches: (1) Search '" + searchDomain + " events 2025 2026' — find events on their own site. (2) Search '" + company + " upcoming events galas conferences fundraisers 2025 2026' — find ALL upcoming events. (3) Search 'site:linkedin.com/company " + company + "' to find the exact company LinkedIn page URL.",
-      "For every event: the 'source' field MUST be the full URL of the page where you found the event. Never leave source empty if you found it via search.",
-      "For decision makers: search 'site:linkedin.com/in " + company + " (\"marketing director\" OR \"event manager\" OR \"marketing manager\" OR \"VP marketing\" OR \"director of marketing\" OR \"procurement\" OR \"purchasing\" OR \"owner\" OR \"CEO\" OR \"president\")' — return every real linkedin.com/in/ URL you find from results. Do not guess or construct URLs — only return URLs that appear verbatim in search results.",
-      "For LinkedIn URLs: only use URLs from search results that start with https://linkedin.com — never fabricate.",
-      "Return ONLY valid JSON:",
-      "{\"companyLinkedIn\":\"\",\"contactLinkedIn\":\"\",\"contactPerson\":{\"found\":false,\"title\":\"\",\"linkedin\":\"\",\"email\":\"\",\"confidence\":\"high|medium|low\"},\"decisionMakers\":{\"ownerExec\":{\"name\":\"\",\"title\":\"\",\"linkedin\":\"https://linkedin.com/in/... or empty\",\"email\":\"\"},\"marketing\":{\"name\":\"\",\"title\":\"\",\"linkedin\":\"https://linkedin.com/in/... or empty\",\"email\":\"\"},\"procurement\":{\"name\":\"\",\"title\":\"\",\"linkedin\":\"https://linkedin.com/in/... or empty\",\"email\":\"\"},\"eventManager\":{\"name\":\"\",\"title\":\"\",\"linkedin\":\"https://linkedin.com/in/... or empty\",\"email\":\"\"}},\"eventsSite\":[{\"title\":\"\",\"date\":\"Mon D YYYY\",\"venue\":\"\",\"source\":\"full URL where found\",\"recurring\":false,\"notes\":\"\"}],\"eventsWeb\":[{\"title\":\"\",\"date\":\"Mon D YYYY\",\"venue\":\"\",\"source\":\"full URL where found\",\"recurring\":false,\"notes\":\"\"}]}"
+      "Use 3 searches: " +
+        "(1) '" + searchDomain + " events 2025 2026' — events on their own site → eventsSite. " +
+        "(2) '" + company + " upcoming events galas conferences fundraisers 2025 2026' — events they participate in or sponsor → eventsWeb. " +
+        "(3) 'site:linkedin.com/in " + company + " (\"marketing director\" OR \"VP marketing\" OR \"event manager\" OR \"procurement manager\" OR \"CEO\" OR \"president\" OR \"owner\")' — decision makers.",
+      "Rules: Only return URLs that appear verbatim in search results. Never fabricate or construct URLs. Every event needs a 'source' URL where you found it.",
+      'Schema: {"companyLinkedIn":"","contactLinkedIn":"","contactPerson":{"found":false,"title":"","linkedin":"","email":"","confidence":"high|medium|low"},"decisionMakers":{"ownerExec":{"name":"","title":"","linkedin":"","email":""},"marketing":{"name":"","title":"","linkedin":"","email":""},"procurement":{"name":"","title":"","linkedin":"","email":""},"eventManager":{"name":"","title":"","linkedin":"","email":""}},"eventsSite":[{"title":"","date":"Mon D YYYY","venue":"","source":"","recurring":false,"notes":""}],"eventsWeb":[{"title":"","date":"Mon D YYYY","venue":"","source":"","recurring":false,"notes":""}]}'
     );
     var p1 = p1Lines.join("\n");
 
     // ── PHASE 2 — Company details + observances (Haiku, secondary) ──
     var p2 = [
-      "Research this company for QLP (promotional products). Return ONLY valid JSON, no markdown.",
-      "Company: " + company + " | Domain: " + searchDomain + " | Today: " + todayStr,
-      "Use MAX 3 searches: (1) Search '" + searchDomain + " contact address headquarters' for: employees (number only), revenue, founded year, industry, 1-sentence blurb, recent news, MAIN COMPANY PHONE NUMBER (the switchboard / headquarters number from contact page or footer), and CORPORATE ADDRESS (check contact page, about page, or footer for street address including city, state, zip). (2) Search for industry observances/awareness months for this company's industry. (3) Search '" + company + " facebook instagram twitter tiktok youtube' for social media profile URLs.",
-      "CRITICAL: corporateAddress is HIGH PRIORITY. Check the company's contact page, about page, footer, or Google Maps listing. If you find a partial address, include what you have. Never leave corporateAddress empty if any address info exists online.",
-      "For companyPhone: return the main switchboard or headquarters number. Format as digits with separators (e.g. '+1 555 123 4567' or '(555) 123-4567'). Leave empty if not found on the contact page, about page, or footer. Do not guess.",
-      "For socialMedia: ONLY return URLs you find in actual search results. Do NOT guess or construct URLs. Leave empty string for any platform not found. Return ONLY valid JSON:",
-      "{\"companyName\":\"\",\"employees\":\"number only\",\"industry\":\"Healthcare|Education|Finance|Nonprofit|Retail|Technology|Manufacturing|Government|Legal|Real Estate or empty\",\"blurb\":\"1 sentence max\",\"revenue\":\"e.g. $2M or empty\",\"foundedYear\":\"4-digit or empty\",\"companyPhone\":\"main number or empty\",\"socialMedia\":{\"facebook\":\"\",\"instagram\":\"\",\"twitter\":\"\",\"tiktok\":\"\",\"youtube\":\"\"},\"recentNews\":[{\"headline\":\"short\",\"date\":\"Mon YYYY\",\"sourceUrl\":\"\"}],\"observances\":[{\"title\":\"\",\"date\":\"Mon D YYYY\",\"notes\":\"\"}],\"corporateAddress\":{\"street\":\"\",\"suite\":\"\",\"city\":\"\",\"state\":\"\",\"zip\":\"\"}}"
+      "Research " + company + " (" + searchDomain + ") for QLP (promotional products). Today: " + todayStr + ". Return only valid JSON.",
+      "Use up to 3 searches: " +
+        "(1) '" + searchDomain + " contact' — extract MAIN PHONE (switchboard) and full corporate ADDRESS from the contact page or footer. " +
+        "(2) '" + searchDomain + " about' OR '" + company + " company size revenue' — extract employees (number), revenue, founded year, industry, 1-sentence blurb. " +
+        "(3) Industry awareness months and observances for this company.",
+      "Address and phone are HIGH PRIORITY — they're typically on the contact page or website footer. Partial address OK. Don't guess phone numbers.",
+      "Phone format: digits with separators (e.g. (555) 123-4567 or +1 555 123 4567).",
+      'Schema: {"companyName":"","employees":"","industry":"Healthcare|Education|Finance|Nonprofit|Retail|Technology|Manufacturing|Government|Legal|Real Estate or empty","blurb":"","revenue":"e.g. $2M","foundedYear":"YYYY","companyPhone":"","recentNews":[{"headline":"","date":"Mon YYYY","sourceUrl":""}],"observances":[{"title":"","date":"Mon D YYYY","notes":""}],"corporateAddress":{"street":"","suite":"","city":"","state":"","zip":""}}'
     ].join("\n");
 
     // ── Hooks prompt builder (uses context from P1+P2, no search) ─
@@ -12497,6 +12493,89 @@
           // nextFn after P2: fire hooks (no search)
           function() {
             if (_pipelineAborted || _searchToken !== _thisToken) { _researchInProgress = false; return; }
+
+            // ── Disambiguation retry (parallel, non-blocking) ─────────
+            // If P1 came up empty on company LinkedIn AND decision makers,
+            // and P2 found a legal name that differs from the rep's typed name,
+            // fire one targeted retry using the legal name. Common case: rep types
+            // "Cobot", AI finds "Collaborative Robotics Inc." — retry hits clean results.
+            (function _maybeDisambigRetry() {
+              try {
+                var legalName = (_researchData.companyName || '').trim();
+                var typedName = String(company || '').trim();
+                if (!legalName || !typedName) return;
+                // Only worth running if legal name is meaningfully longer/different
+                var legalLower = legalName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                var typedLower = typedName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                // Word-aware prefix check: typed is a "prefix" only if it matches the
+                // first WORD of the legal name (case+punctuation insensitive). Avoids
+                // false matches like "GE" being a prefix of "general".
+                var legalWords = legalName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+                var typedIsFirstWord = legalWords.length > 0 && legalWords[0] === typedLower;
+                var nameDiffers = legalLower !== typedLower &&
+                  !typedIsFirstWord &&
+                  legalName.length > typedName.length + 4;
+                var hasNoLinkedIn = !_researchData.companyLinkedIn;
+                var dm = _researchData.decisionMakers || {};
+                var hasNoDM = !(dm.ownerExec && dm.ownerExec.name) &&
+                              !(dm.marketing && dm.marketing.name) &&
+                              !(dm.procurement && dm.procurement.name) &&
+                              !(dm.eventManager && dm.eventManager.name);
+                if (!nameDiffers || (!hasNoLinkedIn && !hasNoDM)) return;
+                // Sanitize legalName for safe injection into search query strings
+                var safeLegal = legalName.replace(/["\\\n\r]/g, ' ').trim();
+                if (!safeLegal) return;
+                var disambigPrompt = [
+                  'Find LinkedIn URLs for ' + safeLegal + ' (' + searchDomain + '). Today: ' + todayStr + '. Return only valid JSON.',
+                  'Use 1-2 searches: (1) site:linkedin.com/company "' + safeLegal + '" — find official company LinkedIn page.' +
+                    (hasNoDM ? ' (2) site:linkedin.com/in "' + safeLegal + '" ("marketing director" OR "VP marketing" OR "event manager" OR "procurement" OR "CEO" OR "president") — find decision makers.' : ''),
+                  'Rules: Only return URLs that appear verbatim in search results. Never fabricate.',
+                  'Schema: {"companyLinkedIn":"","decisionMakers":{"ownerExec":{"name":"","title":"","linkedin":"","email":""},"marketing":{"name":"","title":"","linkedin":"","email":""},"procurement":{"name":"","title":"","linkedin":"","email":""},"eventManager":{"name":"","title":"","linkedin":"","email":""}}}'
+                ].join('\n');
+                var retryToken = _thisToken;
+                fetch(GS_URL, { method: 'POST', body: JSON.stringify({ action: 'runResearch', prompt: disambigPrompt, rep: window._currentRep || '' }) })
+                  .then(function(r) { return r.text(); })
+                  .then(function(raw) {
+                    if (_searchToken !== retryToken || _pipelineAborted) return;
+                    var parsed = _safeParse(raw, 'disambig-retry');
+                    var result = parsed ? _parseResult(parsed) : null;
+                    if (!result) return;
+                    var changed = false;
+                    var coLi = _cleanLinkedIn(result.companyLinkedIn, 'company');
+                    if (coLi && !_researchData.companyLinkedIn) { _researchData.companyLinkedIn = coLi; changed = true; }
+                    if (result.decisionMakers && hasNoDM) {
+                      var rdm = result.decisionMakers;
+                      var newDm = {
+                        ownerExec:    _cleanDM(rdm.ownerExec),
+                        marketing:    _cleanDM(rdm.marketing),
+                        procurement:  _cleanDM(rdm.procurement),
+                        eventManager: _cleanDM(rdm.eventManager)
+                      };
+                      if (newDm.ownerExec.name || newDm.marketing.name || newDm.procurement.name || newDm.eventManager.name) {
+                        _researchData.decisionMakers = newDm;
+                        changed = true;
+                      }
+                    }
+                    // Update cost: badge UI + accumulate into per-record total so saved cost is accurate
+                    if (parsed && parsed.costUSD !== undefined) {
+                      try { _updateCostBadge(parsed); } catch(e) {}
+                      var addCost = parseFloat(parsed.costUSD) || 0;
+                      if (addCost > 0) _researchData.searchCostUSD = (parseFloat(_researchData.searchCostUSD) || 0) + addCost;
+                    }
+                    if (changed) {
+                      try { var ov = document.getElementById('research-overlay'); if (ov && ov.style.display !== 'none') populateResearchPopup(); } catch(e) {}
+                      try { _refreshSegCounts(); } catch(e) {}
+                      // If the record was already saved, persist the updated researchData to the sheet
+                      // so disambig results aren't lost when the record is recalled later.
+                      if (_savedRecordId && _savedRecordId !== 'pending' && typeof _persistResearchUpdate === 'function') {
+                        try { _persistResearchUpdate(); } catch(e) {}
+                      }
+                    }
+                  })
+                  .catch(function() { /* silent - retry is best-effort */ });
+              } catch(e) { /* silent */ }
+            })();
+
             setPhaseIndicator(4);
             var hTxt = document.getElementById('rp-more-txt');
             var hBtn = document.getElementById('rp-more-btn');
