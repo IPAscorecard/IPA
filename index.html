@@ -9990,6 +9990,25 @@
     return { ok: false, error: msg };
   }
 
+  // Global _parseResult — extracts the result object from an AI response.
+  // Mirrors the inner _parseResult inside runAIResearch but is available at outer scope
+  // so callers like loadDeepPeopleSearch() and the archive Refresh button can use it.
+  function _parseResult(data) {
+    if (!data || data.error) return null;
+    if (data.result && typeof data.result === 'object') return data.result;
+    var text = (data.result && typeof data.result === 'string') ? data.result : (data.text || '');
+    text = text.replace(/```json|```/g, '').trim();
+    var s = text.indexOf('{');
+    if (s === -1) return null;
+    var depth = 0, e = -1;
+    for (var i = s; i < text.length; i++) {
+      if (text[i] === '{') depth++;
+      else if (text[i] === '}') { depth--; if (depth === 0) { e = i; break; } }
+    }
+    if (e === -1) return null;
+    try { return JSON.parse(text.slice(s, e + 1)); } catch(ex) { return null; }
+  }
+
   function _safeParse(raw, context) {
     // Never silently return null — always return {ok, data, error}
     if (!raw || typeof raw !== 'string') {
@@ -16562,10 +16581,29 @@
         });
         // Dedup against existing names. Use first+last name matching to catch
         // variants like "Sarah J. Smith" vs "Sarah Smith".
+        // Handles: suffixes (Jr/III/PhD), hyphenated last names, and "Last, First" ordering.
         function _nameKey(s) {
-          var parts = String(s||'').toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(Boolean);
+          var raw = String(s||'').toLowerCase();
+          // Detect "Last, First" ordering and flip to "First Last"
+          var commaIdx = raw.indexOf(',');
+          if (commaIdx > 0 && commaIdx < raw.length - 1) {
+            var last = raw.slice(0, commaIdx).trim();
+            var rest = raw.slice(commaIdx + 1).trim();
+            raw = rest + ' ' + last;
+          }
+          // Replace hyphens with spaces (Smith-Jones → Smith Jones), strip punctuation
+          raw = raw.replace(/[-_]/g, ' ').replace(/[^a-z\s]/g, '');
+          var parts = raw.split(/\s+/).filter(Boolean);
+          // Strip common suffixes from the end
+          var SUFFIXES = ['jr','sr','ii','iii','iv','v','phd','md','esq','cpa','mba'];
+          while (parts.length > 1 && SUFFIXES.indexOf(parts[parts.length - 1]) !== -1) parts.pop();
+          // Strip middle initials (single-letter words)
+          parts = parts.filter(function(p, i, arr) {
+            // Keep if it's the first or last word, or if it's longer than 1 char
+            return i === 0 || i === arr.length - 1 || p.length > 1;
+          });
           if (parts.length < 2) return parts.join(' ');
-          return parts[0] + ' ' + parts[parts.length - 1]; // first + last
+          return parts[0] + ' ' + parts[parts.length - 1];
         }
         var existingKeys = existingNames.map(_nameKey);
         cleaned = cleaned.filter(function(p){
