@@ -2263,9 +2263,10 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     margin-bottom: 6px;
-    overflow: hidden;
     background: var(--surface);
   }
+  /* When the cal menu is open, ensure parent overflow doesn't clip it */
+  .research-event-card.cal-menu-open { overflow: visible; z-index: 100; position: relative; }
   .research-event-row {
     display: flex;
     align-items: center;
@@ -2273,6 +2274,7 @@
     padding: 14px 16px;
     cursor: pointer;
     transition: background 0.15s;
+    border-radius: 8px;
   }
   .research-event-row:hover { background: var(--accent-light); }
   .research-event-title { margin: 0; font-size: 15px; font-weight: 500; color: var(--text); }
@@ -15917,15 +15919,36 @@
     var menu = document.getElementById(id + '-calmenu');
     if (!menu) return;
     var wasOpen = menu.classList.contains('open');
-    // Close all other open menus first
-    document.querySelectorAll('.research-cal-menu.open').forEach(function(m) { m.classList.remove('open'); });
+    // Close all other open menus first (and clear their parent cards' open class)
+    document.querySelectorAll('.research-cal-menu.open').forEach(function(m) {
+      m.classList.remove('open');
+      m.style.top = ''; m.style.bottom = '';
+      var card = m.closest('.research-event-card');
+      if (card) card.classList.remove('cal-menu-open');
+    });
     if (!wasOpen) {
       menu.classList.add('open');
+      // Add class to parent card so its overflow no longer clips the menu
+      var card = menu.closest('.research-event-card');
+      if (card) card.classList.add('cal-menu-open');
+      // If menu would extend below the visible scroll area, flip it upward
+      try {
+        var scrollEl = menu.closest('.research-popup-scroll') || document.documentElement;
+        var menuRect = menu.getBoundingClientRect();
+        var scrollRect = scrollEl.getBoundingClientRect();
+        if (menuRect.bottom > scrollRect.bottom - 8) {
+          // Flip: anchor menu to top of button instead of bottom
+          menu.style.top = 'auto';
+          menu.style.bottom = 'calc(100% + 4px)';
+        }
+      } catch(e) { /* silent — fallback to default placement */ }
       // Set up one-shot outside-click closer
       setTimeout(function() {
         var closer = function(e) {
           if (!menu.contains(e.target)) {
             menu.classList.remove('open');
+            menu.style.top = ''; menu.style.bottom = '';
+            if (card) card.classList.remove('cal-menu-open');
             document.removeEventListener('click', closer);
           }
         };
