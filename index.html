@@ -11297,6 +11297,38 @@
   // ── 4-tier phase indicator ──────────────────────────────────
   // phase: 1|2|3|4 = running, 'done' = all complete, 'timeout-N' = phase N timed out,
   //        'noresults' = full failure, 'reset' = clear everything
+  // Update the cache-status pill in the AI Research popup header.
+  // Shows "Cached (Nd old) ✕" when at least one phase came from cache.
+  // Click to force-refresh.
+  function _updateCachePill() {
+    var pill = document.getElementById('rp-cache-status');
+    if (!pill) return;
+    var hits = window._researchCacheHits || 0;
+    var age  = window._researchCacheMaxAge || 0;
+    if (hits > 0) {
+      var ageStr = age <= 0 ? 'today' : (age + 'd old');
+      pill.textContent = 'Cached · ' + ageStr + ' · click to refresh';
+      pill.style.display = 'inline';
+    } else {
+      pill.style.display = 'none';
+    }
+  }
+
+  // Force a full re-research that bypasses the cache. Used by the cache pill click.
+  function forceRefreshResearch() {
+    if (typeof runAIResearch !== 'function') return;
+    if (_researchInProgress) return; // already running
+    if (!confirm('Re-run AI research with fresh data? This will use new search budget.')) return;
+    window._bypassResearchCache = true;
+    var emailEl = document.getElementById('f-email');
+    var siteEl  = document.getElementById('f-website');
+    var email = emailEl ? emailEl.value.trim() : '';
+    var site  = siteEl  ? siteEl.value.trim()  : '';
+    try { runAIResearch(email, site); } catch(e) { _logError('forceRefresh', e); }
+    // Reset bypass flag after starting (subsequent fetches in same pipeline use it via the closure)
+    setTimeout(function() { window._bypassResearchCache = false; }, 100);
+  }
+
   function setPhaseIndicator(phase) {
     var btn = document.getElementById('lightbulb-btn');
     var txt = document.getElementById('lb-text');
@@ -12197,6 +12229,8 @@
 
     // ── Pipeline state ────────────────────────────────────────────
     _pipelineAborted = false;
+    window._researchCacheHits = 0;
+    window._researchCacheMaxAge = 0;
     function _abortPipeline() {
       _pipelineAborted = true;
       _researchInProgress = false;
@@ -12242,6 +12276,13 @@
         if (data && data.error) _logError('phase ' + (segIdx+1) + ' GAS', new Error(data.error));
         // Cost tracking with phase ID to prevent double-count
         if (data) _updateCostBadge(data, phaseId);
+        // Track cache hits — if any phase came from cache, surface in the popup header
+        if (data && data.fromCache) {
+          window._researchCacheHits = (window._researchCacheHits || 0) + 1;
+          if (typeof data.cacheAgeDays === 'number') {
+            window._researchCacheMaxAge = Math.max(window._researchCacheMaxAge || 0, data.cacheAgeDays);
+          }
+        }
         var result = data ? _parseResult(data) : null;
         var gotData = onSuccess(result, elapsed);
         _lockPhaseTime(segIdx, elapsed, gotData ? '#5DCAA5' : '#f87171');
@@ -12344,7 +12385,7 @@
 
     // ── Fire Phase 1 — LinkedIn + Events (Sonnet) ───────────────
     _runPhase(0,
-      { action: 'runResearch', prompt: p1, rep: window._currentRep || '' },
+      { action: 'runResearch', prompt: p1, rep: window._currentRep || '', bypassCache: !!window._bypassResearchCache },
       function(result, elapsed) {
         if (!result) { _abortPipeline(); return false; }
 
@@ -12455,7 +12496,7 @@
         })();
 
         _runPhase(2,
-          { action: 'runResearch', prompt: p2, rep: window._currentRep || '' },
+          { action: 'runResearch', prompt: p2, rep: window._currentRep || '', bypassCache: !!window._bypassResearchCache },
           function(result, elapsed) {
             var got = false;
             if (result) {
@@ -12552,7 +12593,7 @@
                   'Schema: {"companyLinkedIn":"","decisionMakers":{"ownerExec":{"name":"","title":"","linkedin":"","email":""},"marketing":{"name":"","title":"","linkedin":"","email":""},"procurement":{"name":"","title":"","linkedin":"","email":""},"eventManager":{"name":"","title":"","linkedin":"","email":""}}}'
                 ].join('\n');
                 var retryToken = _thisToken;
-                fetch(GS_URL, { method: 'POST', body: JSON.stringify({ action: 'runResearch', prompt: disambigPrompt, rep: window._currentRep || '' }) })
+                fetch(GS_URL, { method: 'POST', body: JSON.stringify({ action: 'runResearch', prompt: disambigPrompt, rep: window._currentRep || '', bypassCache: !!window._bypassResearchCache }) })
                   .then(function(r) { return r.text(); })
                   .then(function(raw) {
                     if (_searchToken !== retryToken || _pipelineAborted) return;
@@ -12614,6 +12655,7 @@
               setLightbulbLoading(false);
               setLightbulb(true);
               setPhaseIndicator('done');
+              try { _updateCachePill(); } catch(e) {}
               try { var ov = document.getElementById('research-overlay'); if (ov && ov.style.display !== 'none') populateResearchPopup(); } catch(e) {}
               try { showDigButton(); } catch(e) {}
               try { _refreshSegCounts(); } catch(e) {}
@@ -18035,6 +18077,7 @@
               <span style="font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="rp-company-meta"></span>
               <span id="rp-search-cost" style="display:none;font-size:10px;padding:1px 7px;border-radius:999px;background:rgba(99,102,241,0.12);color:rgba(165,168,255,0.9);border:1px solid rgba(139,143,168,0.25);" title="AI cost for this search"></span>
               <span id="rp-search-duration" style="display:none;font-size:10px;padding:1px 7px;border-radius:999px;background:rgba(139,143,168,0.08);color:rgba(165,168,255,0.75);border:1px solid rgba(139,143,168,0.2);" title="Time taken for AI search"></span>
+              <span id="rp-cache-status" style="display:none;font-size:10px;padding:1px 7px;border-radius:999px;background:rgba(93,202,165,0.12);color:#5DCAA5;border:1px solid rgba(93,202,165,0.3);cursor:pointer;" title="Click to refresh with fresh data" onclick="forceRefreshResearch()"></span>
             </div>
           </div>
           <!-- IV/PV/AV pills -->
