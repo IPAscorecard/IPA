@@ -16643,20 +16643,23 @@
     var safeSearchName = searchName.replace(/["\\\n\r]/g, ' ').trim() || company;
     var prompt = [
       'Find decision-maker contacts at ' + safeSearchName + ' (' + domain + ') for QLP, a promotional products company. We sell branded merchandise, swag, event giveaways, and employee recognition items.',
-      'Use 2-3 LinkedIn searches with this exact syntax:',
-      '  (1) site:linkedin.com/in "' + safeSearchName + '" ("Marketing Director" OR "VP Marketing" OR "CMO" OR "Brand Manager")',
-      '  (2) site:linkedin.com/in "' + safeSearchName + '" ("Events Manager" OR "Tradeshow" OR "Event Coordinator" OR "Conference")',
-      '  (3) site:linkedin.com/in "' + safeSearchName + '" ("HR Director" OR "People Operations" OR "Employee Experience" OR "Office Manager")',
-      'Priority categories (any are valid promo product buyers): Marketing/Brand · Events/Tradeshow · HR/People Ops · Procurement/Purchasing · Operations/Office Manager.',
+      'Use 3 LinkedIn searches. Be flexible with company name matching — search results may use slightly different name spellings (with/without "Inc.", "LLC", "&", "and", etc.). Match by company OR domain.',
+      '  (1) site:linkedin.com/in ' + safeSearchName + ' (Marketing OR Brand OR Communications) — find marketing/brand leadership.',
+      '  (2) site:linkedin.com/in ' + safeSearchName + ' (Events OR Tradeshow OR Conference OR Sponsorship) — find event leaders.',
+      '  (3) site:linkedin.com/in ' + safeSearchName + ' (HR OR People OR Procurement OR Operations) — find HR/Ops/Procurement leaders.',
+      'Title rules: any senior or mid-level role with the keywords above counts (Director, VP, Manager, Lead, Head of, Senior, Coordinator, etc.). Do NOT require exact title match.',
+      'Verification: a person counts only if their LinkedIn profile mentions the company name OR the domain anywhere in their experience/bio. Do not include people who just happen to have matching keywords.',
+      'Priority categories: Marketing/Brand · Events/Tradeshow · HR/People · Procurement/Purchasing · Operations.',
       'Rules:',
-      '  · Return up to 5 people total, prioritizing role diversity (don\'t return 5 marketers).',
-      '  · LinkedIn URLs MUST come verbatim from search results — never fabricate or guess.',
-      '  · Email: leave EMPTY unless explicitly stated in a search result. Do NOT construct emails from name + domain.',
-      '  · Do not include anyone whose name appears in this list: ' + existingStr + '.',
-      '  · Reject anyone whose role is unrelated to purchasing (e.g. engineers, developers, sales reps).',
+      '  · Return up to 5 people total, prioritizing role diversity.',
+      '  · LinkedIn URLs MUST come verbatim from search results — never fabricate.',
+      '  · Email: leave EMPTY unless explicitly stated. Never construct from name + domain.',
+      '  · Skip these names (already known): ' + existingStr + '.',
+      '  · Skip engineers, developers, sales reps, or junior roles unrelated to purchasing.',
+      'If a search yields no usable results, try a follow-up search with a different angle (e.g., search the company\'s leadership page).',
       'Return ONLY valid JSON:',
       '{"newPeople":[{"name":"","title":"","linkedin":"","email":"","dept":"Marketing|Events|HR|Operations|Procurement","confidence":"high|medium|low"}]}',
-      'If no new people found: {"newPeople":[]}'
+      'If genuinely nothing found after trying: {"newPeople":[]}'
     ].join('\n');
     fetch(GS_URL, { method: 'POST', body: JSON.stringify({ action: 'runResearch', prompt: prompt, rep: window._currentRep || '' }) })
     .then(function(r){ return r.text(); })
@@ -16666,15 +16669,11 @@
       var data; try { data = JSON.parse(raw); } catch(e){ data = null; }
       var result = null;
       if (data) { try { result = _parseResult(data); } catch(e){} }
-      // Update cost display
-      if (data && data.costUSD !== undefined) {
-        _updateCostBadge(data);
-        if (costEl) {
-          costEl.textContent = '$' + parseFloat(data.costUSD).toFixed(4) + ' · ' + elapsed + 's';
-          costEl.style.display = 'inline';
-        }
-      }
+      // Update overall cost badge (popup header pill). The detailed cost label
+      // on the Deep Search button itself is set per-branch below with diagnostic info.
+      if (data && data.costUSD !== undefined) _updateCostBadge(data);
       if (result && Array.isArray(result.newPeople) && result.newPeople.length) {
+        var rawCount = result.newPeople.length;
         var cleaned = result.newPeople.filter(function(p){ return p && p.name; }).map(function(p){
           // Fix LinkedIn URL — prepend https:// if missing
           var li = _stripTags(p.linkedin || '');
@@ -16689,6 +16688,7 @@
             confidence: p.confidence || 'medium'
           };
         });
+        var afterClean = cleaned.length;
         // Dedup against existing names. Use first+last name matching to catch
         // variants like "Sarah J. Smith" vs "Sarah Smith".
         // Handles: suffixes (Jr/III/PhD), hyphenated last names, and "Last, First" ordering.
@@ -16736,9 +16736,46 @@
           }
           try { populatePeoplePanel(); switchResearchTab('people'); } catch(e){}
         }
-        if (btn) { btn.textContent = cleaned.length ? 'Search Again' : '+ Deep Search'; }
+        if (btn) {
+          if (cleaned.length) {
+            btn.textContent = 'Search Again';
+          } else if (rawCount > 0 && afterClean === 0) {
+            // AI returned people but they all duplicated existing ones
+            btn.textContent = 'All ' + rawCount + ' already known';
+            setTimeout(function(){ btn.textContent = '+ Deep Search'; }, 4000);
+          } else {
+            btn.textContent = 'No new people found';
+            setTimeout(function(){ btn.textContent = '+ Deep Search'; }, 3000);
+          }
+        }
+        // Surface diagnostic in cost label so rep knows what happened
+        if (costEl && data && data.costUSD !== undefined) {
+          var diag = '$' + parseFloat(data.costUSD).toFixed(4) + ' · ' + elapsed + 's';
+          if (cleaned.length === 0 && rawCount > 0) {
+            diag += ' · ' + rawCount + ' found, all dupes';
+          } else if (cleaned.length > 0) {
+            diag += ' · +' + cleaned.length + ' added';
+          }
+          costEl.textContent = diag;
+          costEl.style.display = 'inline';
+        }
       } else {
-        if (btn) { btn.textContent = 'No new people found'; setTimeout(function(){ btn.textContent = '+ Deep Search'; }, 3000); }
+        // AI returned empty array OR response was unparseable
+        if (btn) {
+          if (!result) {
+            btn.textContent = 'AI response unparseable';
+          } else if (Array.isArray(result.newPeople) && result.newPeople.length === 0) {
+            btn.textContent = 'AI found no people';
+          } else {
+            btn.textContent = 'No new people found';
+          }
+          setTimeout(function(){ btn.textContent = '+ Deep Search'; }, 4000);
+        }
+        if (costEl && data && data.costUSD !== undefined) {
+          var diag2 = '$' + parseFloat(data.costUSD).toFixed(4) + ' · ' + elapsed + 's · AI returned 0';
+          costEl.textContent = diag2;
+          costEl.style.display = 'inline';
+        }
       }
       if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
     })
