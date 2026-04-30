@@ -16404,12 +16404,14 @@
     var _arOverride = _ar ? (_ar.assignOverride || null) : _assignOverride;
 
     var _v = function(id){ var e=document.getElementById(id); return e?(e.value||'').trim():''; };
-    var name      = (_ar ? (_ar.name    || '') : _v('f-name')).trim();
-    var company   = (_ar ? (_ar.company || '') : _v('f-company')).trim();
-    var phone     = (_ar ? (_ar.phone   || '') : _v('f-phone')).trim();
-    var _emailV   = (_ar ? (_ar.email   || '') : _v('f-email')).trim();
-    var cid       = (_ar ? (_ar.cid     || '') : _v('f-cid')).trim();
-    var notes     = (_ar ? ((_ar.notes && _ar.notes !== '\u2014') ? _ar.notes : '') : _v('f-notes')).trim();
+    // Archive records may have stored some fields as numbers (CID, phone with no formatting,
+    // etc.) — coerce to String before .trim() to avoid "trim is not a function" errors.
+    var name      = String(_ar ? (_ar.name    || '') : _v('f-name')).trim();
+    var company   = String(_ar ? (_ar.company || '') : _v('f-company')).trim();
+    var phone     = String(_ar ? (_ar.phone   || '') : _v('f-phone')).trim();
+    var _emailV   = String(_ar ? (_ar.email   || '') : _v('f-email')).trim();
+    var cid       = String(_ar ? (_ar.cid     || '') : _v('f-cid')).trim();
+    var notes     = String(_ar ? ((_ar.notes && _ar.notes !== '\u2014') ? _ar.notes : '') : _v('f-notes')).trim();
     var budgetAmt = (_ar ? (_ar.budgetAmount || '') : _v('f-budget'));
     var avAmt     = (_ar ? (_ar.avAmount     || '') : _v('f-av-amount'));
     var budgetType= (_ar ? (_ar.budgetType   || '') : (window._budgetType   || ''));
