@@ -9079,6 +9079,7 @@
       _researchData.decisionMakers = rd.decisionMakers || null;
       _researchData.salesHooks     = Array.isArray(rd.salesHooks) ? rd.salesHooks : [];
       _researchData.keyPeople      = Array.isArray(rd.keyPeople) ? rd.keyPeople : [];
+      _researchData.deepSearchLog  = Array.isArray(rd.deepSearchLog) ? rd.deepSearchLog : [];
       _researchData.tradeShows     = Array.isArray(rd.tradeShows) ? rd.tradeShows.filter(function(t){ return t && t.title; }) : [];
       _researchData.competitors    = Array.isArray(rd.competitors) ? rd.competitors : [];
       _researchData.attackPlan     = rd.attackPlan || '';
@@ -9180,6 +9181,7 @@
       _researchData.contactPerson  = rd.contactPerson  || null;
       _researchData.decisionMakers = rd.decisionMakers  || null;
       _researchData.keyPeople      = Array.isArray(rd.keyPeople) ? rd.keyPeople : [];
+      _researchData.deepSearchLog  = Array.isArray(rd.deepSearchLog) ? rd.deepSearchLog : [];
       _researchData.socialMedia    = (rd.socialMedia && typeof rd.socialMedia === 'object') ? rd.socialMedia : {};
       _researchData.searchCostUSD  = parseFloat(rd.searchCostUSD) || 0;
       _researchData.searchDuration = rd.searchDuration || null;
@@ -9237,6 +9239,7 @@
       _researchData.decisionMakers = _rdRestore.decisionMakers || null;
       _researchData.salesHooks     = Array.isArray(_rdRestore.salesHooks)   ? _rdRestore.salesHooks   : [];
       _researchData.keyPeople      = Array.isArray(_rdRestore.keyPeople)    ? _rdRestore.keyPeople    : [];
+      _researchData.deepSearchLog  = Array.isArray(_rdRestore.deepSearchLog) ? _rdRestore.deepSearchLog : [];
       _researchData.tradeShows     = Array.isArray(_rdRestore.tradeShows)   ? _rdRestore.tradeShows.filter(function(t){ return t && t.title; }) : [];
       _researchData.competitors    = Array.isArray(_rdRestore.competitors)  ? _rdRestore.competitors  : [];
       _researchData.attackPlan     = _rdRestore.attackPlan || '';
@@ -10832,7 +10835,8 @@
       decisionMakers:null, contactPerson:null, keyPeople:[],
       salesHooks:[], searchCostUSD:0, searchDuration:null, tradeShows:[],
       competitors:[], attackPlan:'', attackPlans:{}, attackPlanActive:'',
-      companyIntel:'', companyTalkingPoints:[]
+      companyIntel:'', companyTalkingPoints:[],
+      deepSearchLog:[]
     };
   }
 
@@ -13225,7 +13229,7 @@
     };
     if (hasAI) {
       rec.aiResearch = 'YES';
-      rec.researchData = (function(){ try { var rd = _researchData; return JSON.stringify({ companyName:rd.companyName, domain:rd.domain, employees:rd.employees, industry:rd.industry, blurb:rd.blurb, revenue:rd.revenue, foundedYear:rd.foundedYear, companyPhone:rd.companyPhone||'', socialMedia:rd.socialMedia, recentNews:rd.recentNews, eventsSite:rd.eventsSite, eventsWeb:rd.eventsWeb, observances:rd.observances, companyLinkedIn:rd.companyLinkedIn, contactLinkedIn:rd.contactLinkedIn, contactPerson:rd.contactPerson, decisionMakers:rd.decisionMakers, salesHooks:rd.salesHooks, keyPeople:rd.keyPeople||[], searchCostUSD:rd.searchCostUSD, searchDuration:rd.searchDuration, tradeShows:rd.tradeShows||[], competitors:rd.competitors||[], attackPlan:rd.attackPlan||'', attackPlans:rd.attackPlans||{}, attackPlanActive:rd.attackPlanActive||'', companyIntel:rd.companyIntel||'', companyTalkingPoints:rd.companyTalkingPoints||[] }); } catch(e){ return ''; } })();
+      rec.researchData = (function(){ try { var rd = _researchData; return JSON.stringify({ companyName:rd.companyName, domain:rd.domain, employees:rd.employees, industry:rd.industry, blurb:rd.blurb, revenue:rd.revenue, foundedYear:rd.foundedYear, companyPhone:rd.companyPhone||'', socialMedia:rd.socialMedia, recentNews:rd.recentNews, eventsSite:rd.eventsSite, eventsWeb:rd.eventsWeb, observances:rd.observances, companyLinkedIn:rd.companyLinkedIn, contactLinkedIn:rd.contactLinkedIn, contactPerson:rd.contactPerson, decisionMakers:rd.decisionMakers, salesHooks:rd.salesHooks, keyPeople:rd.keyPeople||[], deepSearchLog:rd.deepSearchLog||[], searchCostUSD:rd.searchCostUSD, searchDuration:rd.searchDuration, tradeShows:rd.tradeShows||[], competitors:rd.competitors||[], attackPlan:rd.attackPlan||'', attackPlans:rd.attackPlans||{}, attackPlanActive:rd.attackPlanActive||'', companyIntel:rd.companyIntel||'', companyTalkingPoints:rd.companyTalkingPoints||[] }); } catch(e){ return ''; } })();
       rec.researchEvents = (function(){ try { return JSON.stringify({ events:(_researchData.eventsSite||[]).concat(_researchData.eventsWeb||[]), observances:_researchData.observances||[], tradeShows:_researchData.tradeShows||[] }); } catch(e){ return ''; } })();
       rec.researchNotes = typeof buildResearchBlock === 'function' ? buildResearchBlock() : '';
       rec.aiEmailHtml = (function(){ try { var el = document.getElementById('rp-email-preview-html'); return el ? (el._fullEmailDoc || el.innerHTML) : ''; } catch(e){ return ''; } })();
@@ -15163,6 +15167,10 @@
         costEl.style.display = 'inline-block';
       } else { costEl.style.display = 'none'; costEl.textContent = ''; }
     }
+    // Update Deep Search history pill (shows attempts + dupes/new for this record)
+    try { _updateDeepHistoryPill(); } catch(e) {}
+    // Reflect block status on the Deep Search button itself
+    try { _updateDeepSearchButtonState(); } catch(e) {}
     var durEl = document.getElementById('rp-search-duration');
     if (durEl) { durEl.style.display = _researchData.searchDuration ? 'inline-block' : 'none'; if (_researchData.searchDuration) durEl.textContent = _researchData.searchDuration + 's'; }
     // A2 header rendering
@@ -16603,9 +16611,129 @@
     el._fullEmailDoc = emailDoc;
   }
 
+  // Compute Deep Search block state from log + TTL.
+  // Returns { blocked: bool, daysUntilLift: number, consecutiveZeros: number }.
+  function _deepSearchBlockState() {
+    var log = (_researchData && _researchData.deepSearchLog) || [];
+    var nowMs = Date.now();
+    var BLOCK_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+    var consecutiveZeros = 0;
+    var oldestZeroTimestamp = null;
+    for (var i = log.length - 1; i >= 0; i--) {
+      var entry = log[i];
+      if (!entry.returnedZero) break;
+      var entryTs = entry.timestamp || 0;
+      if (nowMs - entryTs > BLOCK_TTL_MS) break;
+      consecutiveZeros++;
+      oldestZeroTimestamp = entryTs;
+    }
+    var blocked = consecutiveZeros >= 2;
+    var daysUntilLift = 0;
+    if (blocked && oldestZeroTimestamp) {
+      var ageDays = Math.floor((nowMs - oldestZeroTimestamp) / 86400000);
+      daysUntilLift = Math.max(0, 30 - ageDays);
+    }
+    return { blocked: blocked, daysUntilLift: daysUntilLift, consecutiveZeros: consecutiveZeros };
+  }
+
+  // Update the Deep Search button visual state to reflect block status.
+  // When blocked, the button shows a "Locked Nd" pill in muted styling.
+  function _updateDeepSearchButtonState() {
+    var btn = document.getElementById('deep-people-btn');
+    if (!btn) return;
+    var state = _deepSearchBlockState();
+    if (state.blocked) {
+      btn.style.opacity = '0.5';
+      btn.style.cursor = 'not-allowed';
+      btn.title = 'Blocked: ' + state.consecutiveZeros + ' recent attempts returned no new people. Lifts in ' + state.daysUntilLift + ' day' + (state.daysUntilLift === 1 ? '' : 's') + '.';
+      btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Locked · ' + state.daysUntilLift + 'd';
+    } else {
+      btn.style.opacity = '1';
+      btn.style.cursor = 'pointer';
+      btn.title = '';
+      btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Deep Search';
+    }
+  }
+
+  // Update the Deep Search history pill in the popup header.
+  // Shows N searches and total dupe vs new ratio.
+  function _updateDeepHistoryPill() {
+    var pill = document.getElementById('rp-deep-history');
+    if (!pill) return;
+    var log = (_researchData && _researchData.deepSearchLog) || [];
+    if (!log.length) {
+      pill.style.display = 'none';
+      return;
+    }
+    var totalNew = 0, totalDupes = 0, totalZero = 0, totalCost = 0;
+    log.forEach(function(e) {
+      totalNew += (e.added || 0);
+      totalDupes += (e.dupes || 0);
+      if (e.returnedZero) totalZero++;
+      totalCost += (e.costUSD || 0);
+    });
+    var label = 'Deep × ' + log.length;
+    if (totalNew > 0) label += ' · +' + totalNew + ' added';
+    else label += ' · 0 new';
+    if (totalCost > 0) label += ' · $' + totalCost.toFixed(4);
+    pill.textContent = label;
+    pill.title = 'Deep Search history for this record. ' + log.length + ' attempts, ' +
+      totalNew + ' people added, ' + totalDupes + ' duplicates ignored, ' +
+      totalZero + ' returned nothing. Total cost: $' + totalCost.toFixed(4);
+    pill.style.display = 'inline';
+  }
+
   function loadDeepPeopleSearch() {
     var btn = document.getElementById('deep-people-btn');
     var costEl = document.getElementById('deep-people-cost');
+    if (!btn) return;
+
+    // ── Pre-check: spending guardrails ────────────────────────
+    // Spending more money on Deep Search only makes sense when there's reasonable
+    // chance of finding NEW people. Block based on attempt history with TTL so
+    // the world has time to change (new hires, role changes, new LinkedIn profiles).
+    var log = (_researchData.deepSearchLog || []);
+    var attemptCount = log.length;
+    var nowMs = Date.now();
+    var BLOCK_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+    // Count consecutive zero-result attempts walking backward from the most recent.
+    // Stops at: any non-zero result, or any attempt older than 30 days (TTL elapsed).
+    var consecutiveZeros = 0;
+    var oldestZeroTimestamp = null;
+    for (var i = log.length - 1; i >= 0; i--) {
+      var entry = log[i];
+      if (!entry.returnedZero) break;
+      var entryTs = entry.timestamp || 0;
+      if (nowMs - entryTs > BLOCK_TTL_MS) break; // TTL elapsed — stop counting
+      consecutiveZeros++;
+      oldestZeroTimestamp = entryTs;
+    }
+    // Hard block after 2 consecutive zero-result searches within the TTL window
+    if (consecutiveZeros >= 2) {
+      var ageDays = oldestZeroTimestamp ? Math.floor((nowMs - oldestZeroTimestamp) / 86400000) : 0;
+      var daysUntilLift = Math.max(0, 30 - ageDays);
+      alert('Deep Search blocked for this record.\n\n' +
+        consecutiveZeros + ' recent attempts returned no new people. To prevent wasted API spend, ' +
+        'further searches are blocked until ' + daysUntilLift + ' day' + (daysUntilLift === 1 ? '' : 's') + ' from now.\n\n' +
+        'Try searching LinkedIn manually for decision makers at this company.');
+      return;
+    }
+    // Soft warning when the previous attempt (within TTL) found 0 new people
+    if (consecutiveZeros === 1) {
+      if (!confirm('Last Deep Search returned 0 new people for this record.\n\n' +
+          'After 1 more zero-result attempt, Deep Search will be blocked for 30 days on this record.\n\n' +
+          'Proceed anyway? (Will spend ~$0.03)')) {
+        return;
+      }
+    }
+    // For very small companies, warn that comprehensive coverage is likely already in place
+    var empCount = _parseEmployeeCount(_researchData.employees);
+    if (attemptCount === 0 && empCount != null && empCount < 25) {
+      if (!confirm('This company has only ' + empCount + ' employees. Standard research likely already covered most decision makers.\n\nProceed with Deep Search anyway? (Will spend ~$0.03)')) {
+        return;
+      }
+    }
+
     if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
     // Start timer
     var _dpStart = Date.now();
@@ -16635,32 +16763,59 @@
     ['ownerExec','marketing','procurement','eventManager'].forEach(function(k){ if (dm[k] && dm[k].name) existingNames.push(dm[k].name); });
     kp.forEach(function(p){ if (p.name) existingNames.push(p.name); });
     var existingStr = existingNames.length ? existingNames.join(', ') : 'none';
+    // Detect category gaps — only search for categories that DON'T already have a known person.
+    // Saves API budget and keeps the search focused on what's actually missing.
+    var hasMarketing = !!(dm.marketing && dm.marketing.name);
+    var hasEvents    = !!(dm.eventManager && dm.eventManager.name);
+    var hasOwnerExec = !!(dm.ownerExec && dm.ownerExec.name);
+    var hasProc      = !!(dm.procurement && dm.procurement.name);
+    // Also check keyPeople for category coverage (people from prior Deep Searches)
+    kp.forEach(function(p) {
+      var d = String(p.dept || '').toLowerCase();
+      if (d.indexOf('market') !== -1 || d.indexOf('brand') !== -1) hasMarketing = true;
+      else if (d.indexOf('event') !== -1) hasEvents = true;
+      else if (d.indexOf('hr') !== -1 || d.indexOf('people') !== -1 || d.indexOf('operation') !== -1) hasOwnerExec = true;
+      else if (d.indexOf('procurement') !== -1 || d.indexOf('purchas') !== -1) hasProc = true;
+    });
+    var gaps = [];
+    if (!hasMarketing) gaps.push({ key: 'marketing', kw: '(Marketing OR Brand OR Communications)' });
+    if (!hasEvents)    gaps.push({ key: 'events',    kw: '(Events OR Tradeshow OR Conference OR Sponsorship)' });
+    if (!hasOwnerExec) gaps.push({ key: 'hrops',     kw: '(HR OR People OR Operations OR "Office Manager")' });
+    if (!hasProc)      gaps.push({ key: 'procurement', kw: '(Procurement OR Purchasing OR "Vendor Management")' });
+    // If everything is already covered, fall back to a broad single-search "fill in around the edges" pass
+    if (gaps.length === 0) {
+      gaps.push({ key: 'broad', kw: '(Director OR VP OR "Vice President" OR Head OR Senior)' });
+    }
     // Use the legal company name if AI discovered one — way more disambiguating
     // for searches than the rep's typed shorthand (e.g. "Cobot" → "Collaborative Robotics Inc.").
     var legalName = (_researchData.companyName || '').trim();
     var searchName = legalName && legalName.length > company.length + 4 ? legalName : company;
     // Sanitize for safe injection into search query strings
     var safeSearchName = searchName.replace(/["\\\n\r]/g, ' ').trim() || company;
-    var prompt = [
+    // Build search list dynamically based on gaps
+    var searchLines = gaps.map(function(g, idx) {
+      return '  (' + (idx + 1) + ') site:linkedin.com/in ' + safeSearchName + ' ' + g.kw;
+    });
+    var promptLines = [
       'Find decision-maker contacts at ' + safeSearchName + ' (' + domain + ') for QLP, a promotional products company. We sell branded merchandise, swag, event giveaways, and employee recognition items.',
-      'Use 3 LinkedIn searches. Be flexible with company name matching — search results may use slightly different name spellings (with/without "Inc.", "LLC", "&", "and", etc.). Match by company OR domain.',
-      '  (1) site:linkedin.com/in ' + safeSearchName + ' (Marketing OR Brand OR Communications) — find marketing/brand leadership.',
-      '  (2) site:linkedin.com/in ' + safeSearchName + ' (Events OR Tradeshow OR Conference OR Sponsorship) — find event leaders.',
-      '  (3) site:linkedin.com/in ' + safeSearchName + ' (HR OR People OR Procurement OR Operations) — find HR/Ops/Procurement leaders.',
+      'Run ' + gaps.length + ' targeted LinkedIn search' + (gaps.length === 1 ? '' : 'es') + '. Be flexible with company name spellings (with/without "Inc.", "LLC", "&", "and", etc.).'
+    ];
+    promptLines.push.apply(promptLines, searchLines);
+    promptLines.push(
       'Title rules: any senior or mid-level role with the keywords above counts (Director, VP, Manager, Lead, Head of, Senior, Coordinator, etc.). Do NOT require exact title match.',
-      'Verification: a person counts only if their LinkedIn profile mentions the company name OR the domain anywhere in their experience/bio. Do not include people who just happen to have matching keywords.',
-      'Priority categories: Marketing/Brand · Events/Tradeshow · HR/People · Procurement/Purchasing · Operations.',
+      'Verification: a person counts only if their LinkedIn profile mentions the company name OR the domain anywhere in their experience/bio.',
       'Rules:',
       '  · Return up to 5 people total, prioritizing role diversity.',
       '  · LinkedIn URLs MUST come verbatim from search results — never fabricate.',
       '  · Email: leave EMPTY unless explicitly stated. Never construct from name + domain.',
       '  · Skip these names (already known): ' + existingStr + '.',
       '  · Skip engineers, developers, sales reps, or junior roles unrelated to purchasing.',
-      'If a search yields no usable results, try a follow-up search with a different angle (e.g., search the company\'s leadership page).',
+      'If a search yields no usable results, try one follow-up search with a different angle (company leadership page, news mentions).',
       'Return ONLY valid JSON:',
       '{"newPeople":[{"name":"","title":"","linkedin":"","email":"","dept":"Marketing|Events|HR|Operations|Procurement","confidence":"high|medium|low"}]}',
       'If genuinely nothing found after trying: {"newPeople":[]}'
-    ].join('\n');
+    );
+    var prompt = promptLines.join('\n');
     fetch(GS_URL, { method: 'POST', body: JSON.stringify({ action: 'runResearch', prompt: prompt, rep: window._currentRep || '' }) })
     .then(function(r){ return r.text(); })
     .then(function(raw){
@@ -16777,7 +16932,35 @@
           costEl.style.display = 'inline';
         }
       }
+      // ── Log this attempt to deepSearchLog (for header history pill + future pre-checks) ──
+      try {
+        if (!_researchData.deepSearchLog) _researchData.deepSearchLog = [];
+        var rawForLog = (typeof rawCount !== 'undefined') ? rawCount : 0;
+        var addedForLog = (typeof cleaned !== 'undefined') ? cleaned.length : 0;
+        var dupesForLog = rawForLog - addedForLog;
+        _researchData.deepSearchLog.push({
+          timestamp: Date.now(),
+          rawCount: rawForLog,
+          added: addedForLog,
+          dupes: dupesForLog < 0 ? 0 : dupesForLog,
+          returnedZero: rawForLog === 0,
+          costUSD: (data && typeof data.costUSD === 'number') ? data.costUSD : 0,
+          elapsed: parseFloat(elapsed) || 0
+        });
+        // Persist back to archive cache if applicable
+        if (_arcRecord) {
+          try {
+            var _arcRd2 = typeof _arcRecord.researchData === 'string' ? JSON.parse(_arcRecord.researchData) : (_arcRecord.researchData || {});
+            _arcRd2.deepSearchLog = _researchData.deepSearchLog;
+            _arcRecord.researchData = JSON.stringify(_arcRd2);
+          } catch(e) {}
+        }
+        _updateDeepHistoryPill();
+      } catch(e) { /* logging failure is non-fatal */ }
       if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+      // Re-evaluate block state — if we just hit the 2nd consecutive zero, the
+      // button should now show as locked even though we just enabled it above.
+      try { _updateDeepSearchButtonState(); } catch(e) {}
     })
     .catch(function(){
       clearInterval(_dpTimer);
@@ -18183,6 +18366,7 @@
               <span id="rp-search-cost" style="display:none;font-size:10px;padding:1px 7px;border-radius:999px;background:rgba(99,102,241,0.12);color:rgba(165,168,255,0.9);border:1px solid rgba(139,143,168,0.25);" title="AI cost for this search"></span>
               <span id="rp-search-duration" style="display:none;font-size:10px;padding:1px 7px;border-radius:999px;background:rgba(139,143,168,0.08);color:rgba(165,168,255,0.75);border:1px solid rgba(139,143,168,0.2);" title="Time taken for AI search"></span>
               <span id="rp-cache-status" style="display:none;font-size:10px;padding:1px 7px;border-radius:999px;background:rgba(93,202,165,0.12);color:#5DCAA5;border:1px solid rgba(93,202,165,0.3);cursor:pointer;" title="Click to refresh with fresh data" onclick="forceRefreshResearch()"></span>
+              <span id="rp-deep-history" style="display:none;font-size:10px;padding:1px 7px;border-radius:999px;background:rgba(96,165,250,0.1);color:#60a5fa;border:1px solid rgba(96,165,250,0.25);" title="Deep Search history for this record"></span>
             </div>
           </div>
           <!-- IV/PV/AV pills -->
