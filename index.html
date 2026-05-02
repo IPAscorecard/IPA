@@ -12629,6 +12629,16 @@
     var repIV        = scores.iv;
     var todayStr     = new Date().toLocaleDateString("en-US", {year:"numeric",month:"long",day:"numeric"});
     var contactName  = (document.getElementById('f-name') ? document.getElementById('f-name').value.trim() : '') || '';
+    // ── Ground truth from the website itself (Phase 0 — invisible to UI) ──────────
+    // Fired before P1 to anchor all downstream prompts to what the website actually
+    // says about itself. Without this, an entity name like "NAPCA" can pattern-match
+    // to a different organization with the same acronym in the model's training data,
+    // producing confidently wrong content (the pipe-coatings vs elder-advocacy case).
+    // The verification step searches site:[domain] for a single-source quote and the
+    // entity's self-description. Failure is non-fatal — we fall through to current
+    // behavior. Only fires when the rep entered a website (the case where domain
+    // anchoring is most useful); otherwise we have nothing to anchor against.
+    var _groundTruth = null;  // Set to {verifiedName, verifiedTagline, verifiedFocus, verifiedFoundedYear, sourceQuote} on success, stays null on failure or when skipped
 
     // ── Shared helpers ────────────────────────────────────────────
     // ── Data sanitization layer ──────────────────────────────────
@@ -13108,6 +13118,8 @@
     }
 
     // ── Fire Phase 1 — LinkedIn + Events (Sonnet) ───────────────
+    // Wrapped in _fireP1Pipeline so we can chain it after Phase 0 verification.
+    function _fireP1Pipeline() {
     _runPhase(0,
       { action: 'runResearch', prompt: p1, rep: window._currentRep || '', bypassCache: _bypassCacheRun },
       function(result, elapsed) {
@@ -13424,11 +13436,32 @@
               if (!_ciCompany || rd.companyIntel) { console.log('[CI] Skipped: company=' + _ciCompany + ', already=' + !!rd.companyIntel); return; }
               console.log('[CI] Firing Company Intel for: ' + _ciCompany + ' | industry: ' + (rd.industry||'none'));
               var ciCtx = ['Company: ' + _ciCompany, rd.industry ? 'Industry: ' + rd.industry : '', rd.blurb ? 'About: ' + rd.blurb : '', rd.employees ? 'Employees: ' + rd.employees : '', rd.revenue ? 'Revenue: ' + rd.revenue : '', rd.foundedYear ? 'Founded: ' + rd.foundedYear : '', rd.domain ? 'Website: ' + rd.domain : ''].filter(Boolean).join('\n');
+              // If verification produced a ground-truth anchor, prepend it so CI can't drift
+              // to a different entity that shares the same name. The empty-on-doubt clause
+              // tells the model to leave fields blank rather than confabulate when the data
+              // doesn't match the anchored entity.
+              var ciAnchor = '';
+              if (_groundTruth && _groundTruth.verifiedName) {
+                ciAnchor = [
+                  'GROUND TRUTH FROM ' + (rd.domain || searchDomain) + ':',
+                  'Entity self-identifies as: ' + _groundTruth.verifiedName + (_groundTruth.verifiedTagline ? ' — ' + _groundTruth.verifiedTagline : ''),
+                  _groundTruth.verifiedFocus ? 'What they do: ' + _groundTruth.verifiedFocus : '',
+                  _groundTruth.sourceQuote ? 'Source quote from homepage: "' + _groundTruth.sourceQuote + '"' : '',
+                  'Your brief must describe THIS entity. Any content inconsistent with the self-description above is wrong, even if you have prior knowledge of an organization with a similar name.',
+                  ''
+                ].filter(Boolean).join('\n');
+              }
               var ciPrompt = [
                 'You are a sales intelligence researcher. Generate a company background brief for a sales rep.',
-                '', ciCtx, '',
+                ciAnchor,
+                ciCtx, '',
+                'Hard rules:',
+                '- Every section must be consistent with the ground truth above and the website at ' + (rd.domain || searchDomain) + '.',
+                '- If you cannot find specific verifiable information about this exact organization at this exact website, return empty strings for those fields. Do NOT fabricate founder names, milestones, or culture details to fill space.',
+                '- Better to return empty fields than content that contradicts the website.',
+                '',
                 'Return ONLY valid JSON with this structure:',
-                '{"companyIntel":{"origin":"How/why founded, key founder names, 2-3 sentences","mission":"What drives them, stated purpose, 2-3 sentences","growth":"Key milestones and expansions, 2-3 sentences","culture":"Internal culture, community involvement, causes, 2-3 sentences","edge":"What differentiates them from competitors, 2-3 sentences","talkingPoints":["Specific thing to say that impresses a founder","Another specific insider fact","Third talking point"]}}'
+                '{"companyIntel":{"origin":"How/why founded, key founder names if verifiably known, 2-3 sentences or empty","mission":"What drives them, stated purpose, 2-3 sentences or empty","growth":"Key milestones and expansions, 2-3 sentences or empty","culture":"Internal culture, community involvement, causes, 2-3 sentences or empty","edge":"What differentiates them from competitors, 2-3 sentences or empty","talkingPoints":["Specific thing to say that impresses a founder","Another specific insider fact","Third talking point"]}}'
               ].join('\n');
               gsPost({ action: 'runResearch', prompt: ciPrompt, rep: window._currentRep || '', noSearch: false })
               .then(function(data2) {
@@ -13478,6 +13511,88 @@
       },
       _abortPipeline
     );
+    } // end _fireP1Pipeline
+
+    // ── Phase 0 — Ground-truth verification (only when website provided) ──
+    // Fires before P1 to anchor everything against the website's own self-description.
+    // Failure is non-fatal: prompts go through with current behavior.
+    if (searchDomain && website) {
+      var verifyPrompt = [
+        'You are verifying an organization against its own website. Search ONLY the domain provided.',
+        'Domain: ' + searchDomain,
+        'Use 1 search: site:' + searchDomain + ' — read the homepage and (if available) the About page.',
+        'Extract what the website says about itself. Do NOT use outside knowledge or other sources.',
+        'If the website is unreachable, paywalled, or homepage content cannot be located, return all empty strings — never guess.',
+        'Return ONLY valid JSON:',
+        '{"verifiedName":"the legal/displayed name as the homepage shows it","verifiedTagline":"one line — what they say about themselves","verifiedFocus":"5-12 words on what the organization actually does","verifiedFoundedYear":"YYYY if visible on about page, else empty","sourceQuote":"5-15 words taken verbatim from the homepage that supports the tagline"}'
+      ].join('\n');
+      // 25s deadline so a slow verification doesn't stall the whole pipeline
+      var _verifyController = new AbortController();
+      var _verifyTimer = setTimeout(function() { _verifyController.abort(); }, 25000);
+      fetch(GS_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'runResearch', prompt: verifyPrompt, rep: window._currentRep || '', bypassCache: _bypassCacheRun }),
+        signal: _verifyController.signal
+      })
+      .then(function(r) { return r.text(); })
+      .then(function(raw) {
+        clearTimeout(_verifyTimer);
+        if (_pipelineAborted || _searchToken !== _thisToken) return;
+        try {
+          var parsed = _safeParse(raw, 'phase-0-verify');
+          if (parsed.ok && parsed.data) {
+            _updateCostBadge(parsed.data, 'verify-' + _thisToken);
+            var v = parsed.data.result;
+            if (typeof v === 'string') { try { v = JSON.parse(v); } catch(e) {} }
+            // Require both verifiedName AND sourceQuote — sourceQuote is the
+            // anti-hallucination check. If the model can't quote the homepage,
+            // it can't have actually verified anything.
+            if (v && v.verifiedName && v.sourceQuote) {
+              _groundTruth = {
+                verifiedName:        String(v.verifiedName || '').trim(),
+                verifiedTagline:     String(v.verifiedTagline || '').trim(),
+                verifiedFocus:       String(v.verifiedFocus || '').trim(),
+                verifiedFoundedYear: String(v.verifiedFoundedYear || '').replace(/\D/g,'').slice(0,4),
+                sourceQuote:         String(v.sourceQuote || '').trim()
+              };
+              // Trust the website over the rep's typed company name.
+              // Only update the visible form field if the rep didn't type one — don't
+              // overwrite a rep's deliberate input — but always use verifiedName for
+              // anchoring downstream prompts.
+              if (_groundTruth.verifiedName.length > 2) {
+                var fc = document.getElementById('f-company');
+                if (fc && !fc.value.trim()) fc.value = _groundTruth.verifiedName;
+                company = _groundTruth.verifiedName;
+              }
+              // Build the anchor block prepended to P1 and P2 prompts. The model is
+              // told explicitly to ignore search results that contradict the website's
+              // self-description. This is the fix for acronym collisions where two real
+              // organizations share a name (e.g. NAPCA = pipe coatings vs NAPCA = elder advocacy).
+              var anchor = [
+                'GROUND TRUTH FROM ' + searchDomain + ':',
+                'Entity self-identifies as: ' + _groundTruth.verifiedName + (_groundTruth.verifiedTagline ? ' — ' + _groundTruth.verifiedTagline : ''),
+                _groundTruth.verifiedFocus ? 'What they do: ' + _groundTruth.verifiedFocus : '',
+                _groundTruth.sourceQuote ? 'Source quote from homepage: "' + _groundTruth.sourceQuote + '"' : '',
+                'All findings MUST describe THIS entity. If search returns content about a different organization with a similar name or acronym, ignore that content. Return empty for fields you cannot verify against THIS entity.',
+                ''
+              ].filter(Boolean).join('\n');
+              p1 = anchor + '\n' + p1;
+              p2 = anchor + '\n' + p2;
+            }
+          }
+        } catch(e) { _logError('phase-0-verify', e); }
+        // Always proceed — verification is non-fatal
+        _fireP1Pipeline();
+      })
+      .catch(function(err) {
+        clearTimeout(_verifyTimer);
+        // Verification failed (timeout, network, parse). Fall through to current behavior.
+        if (!_pipelineAborted && _searchToken === _thisToken) _fireP1Pipeline();
+      });
+    } else {
+      // No website entered — nothing to anchor against, run the pipeline as before
+      _fireP1Pipeline();
+    }
   }
 
   // Wire up listeners after DOM is ready
