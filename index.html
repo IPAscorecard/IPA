@@ -12224,13 +12224,18 @@
     }
     if (missing.length === 0) missing.push('additional events, newer news headlines, or more decision maker details not already listed above');
 
-    // Social media gaps — lower priority, after LinkedIn and DMs
+    // Social media gaps. Always ask if any platform is missing — previously this
+    // had a `< 6` guard that was intended to mean "don't ask if all are filled"
+    // but actually meant "don't ask if NONE are filled," so a fresh search with
+    // all 6 platforms empty (the common case) silently skipped the social ask.
+    // For large companies like national retailers, this caused zero social to
+    // populate even though all platforms exist publicly.
     var sm = rd.socialMedia || {};
     var missingSocial = [];
     ['facebook','instagram','twitter','tiktok','youtube','snapchat'].forEach(function(p) {
       if (!sm[p]) missingSocial.push(p);
     });
-    if (missingSocial.length > 0 && missingSocial.length < 6) {
+    if (missingSocial.length > 0) {
       missing.push('Social media profile URLs for ' + company + ' — search "' + company + ' ' + missingSocial.join(' ') + '" and ONLY return URLs you find in actual search results. Do NOT guess or construct URLs. Platforms still needed: ' + missingSocial.join(', '));
     }
 
@@ -13023,13 +13028,14 @@
     var p2 = [
       "Research " + company + " (" + searchDomain + ") for QLP (promotional products). Today: " + todayStr + ". Return only valid JSON.",
       "Use up to 3 searches: " +
-        "(1) '" + searchDomain + " contact' — extract MAIN PHONE (switchboard) and full corporate ADDRESS from the contact page or footer. " +
-        "(2) '" + searchDomain + " about' OR '" + company + " company size revenue' — extract employees (number), revenue, founded year, industry, 1-sentence blurb. " +
+        "(1) '" + searchDomain + " contact' — extract MAIN PHONE (switchboard) and full corporate ADDRESS from the contact page or footer. Note any social media icon URLs in the footer. " +
+        "(2) '" + searchDomain + " about' OR '" + company + " company size revenue' — extract employees (number), revenue, founded year, industry, 1-sentence blurb. Note any social media icon URLs in the footer. " +
         "(3) Industry awareness months and observances for this company.",
       "Address and phone are HIGH PRIORITY — they're typically on the contact page or website footer. Partial address OK. Don't guess phone numbers.",
+      "Social media URLs: while reading the contact and about pages, capture official Facebook, Instagram, X/Twitter, TikTok, YouTube, and Snapchat URLs from the footer or social-icon links. Only return URLs that appear verbatim on the company's pages. Leave empty if not found — do NOT guess or construct.",
       "Phone format: digits with separators (e.g. (555) 123-4567 or +1 555 123 4567).",
       "Employees: total full-time headcount as a plain integer (e.g. 5500 or 50000). Use commas if it helps readability (e.g. 5,500). Do NOT concatenate multiple numbers. If the source says '5,000 to 7,000', return 5000. Maximum plausible value is 2,500,000 (Walmart-scale). If unsure or a figure looks impossibly large, return empty string.",
-      'Schema: {"companyName":"","employees":"","industry":"Healthcare|Education|Finance|Nonprofit|Retail|Technology|Manufacturing|Government|Legal|Real Estate or empty","blurb":"","revenue":"e.g. $2M","foundedYear":"YYYY","companyPhone":"","recentNews":[{"headline":"","date":"Mon YYYY","sourceUrl":""}],"observances":[{"title":"","date":"Mon D YYYY","notes":""}],"corporateAddress":{"street":"","suite":"","city":"","state":"","zip":""}}'
+      'Schema: {"companyName":"","employees":"","industry":"Healthcare|Education|Finance|Nonprofit|Retail|Technology|Manufacturing|Government|Legal|Real Estate or empty","blurb":"","revenue":"e.g. $2M","foundedYear":"YYYY","companyPhone":"","socialMedia":{"facebook":"","instagram":"","twitter":"","tiktok":"","youtube":"","snapchat":""},"recentNews":[{"headline":"","date":"Mon YYYY","sourceUrl":""}],"observances":[{"title":"","date":"Mon D YYYY","notes":""}],"corporateAddress":{"street":"","suite":"","city":"","state":"","zip":""}}'
     ].join("\n");
 
     // ── Hooks prompt builder (uses context from P1+P2, no search) ─
@@ -15353,9 +15359,24 @@
     var obs    = (rd.observances||[]).filter(function(o){ return o && o.title; }).map(function(o){ return Object.assign({}, o, {_kind:'observance'}); });
     var upcomingEvents = events.filter(function(e){ var d=_daysUntilEvt(e.date); return d!==null&&d>=0; });
     var upcomingObs    = obs.filter(function(o){ var d=_daysUntilEvt(o.date); return d!==null&&d>=0; });
+    // Sort each list ascending by days-until so the picker matches what reps expect
+    // (closest deadline first). Items without parseable dates returned null from
+    // _daysUntilEvt and were already filtered out above; items here all have a number.
+    function _byDaysAsc(a, b) {
+      var da = _daysUntilEvt(a.date);
+      var db = _daysUntilEvt(b.date);
+      if (da === null && db === null) return 0;
+      if (da === null) return 1;
+      if (db === null) return -1;
+      return da - db;
+    }
+    upcomingEvents.sort(_byDaysAsc);
+    upcomingObs.sort(_byDaysAsc);
     _liveEmailItems = upcomingEvents.concat(upcomingObs);
-    // Add sales hooks
+    // Add sales hooks. Sort dated hooks ascending by days-until; undated hooks
+    // sort to the end of the list (they have no chronological position).
     var hooks = (rd.salesHooks||[]).filter(function(h){ return h && h.finding; }).map(function(h){ return Object.assign({}, h, {_kind:'hook', title: h.finding}); });
+    hooks.sort(_byDaysAsc);
     _liveEmailItems = _liveEmailItems.concat(hooks);
     if (!_liveEmailItems.length) {
       container.innerHTML = '<div style="font-size:11px;color:var(--text-muted);padding:8px 0;">No upcoming events or hooks found. Run AI research first.</div>';
