@@ -2945,6 +2945,75 @@
   }
   .foam-drip { animation: foamDrip 3s ease-in-out infinite; transform-origin: top; }
 
+  /* ── Copy-to-clipboard toast & icon ────────────────────────────
+     Floating pill confirms a successful clipboard copy. Independent of the
+     existing compliment-toast (which is positioned at the top and themed
+     differently). This one sits at the bottom-center, brief and unobtrusive,
+     matching what people expect from "copied" feedback. */
+  .copy-toast {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: rgba(29,158,117,0.95);
+    color: #fff;
+    border: 1px solid rgba(93,202,165,0.4);
+    border-radius: 999px;
+    padding: 9px 18px 9px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.22,1,0.36,1);
+    z-index: 12000;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    max-width: calc(100vw - 32px);
+  }
+  .copy-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  .copy-toast-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
+  /* Inline copy icon next to phone/email links. Click target is the icon itself,
+     leaving the link's tel:/mailto: behavior intact. */
+  .copy-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    border: 1px solid rgba(139,143,168,0.25);
+    background: rgba(139,143,168,0.08);
+    color: #B8BBCC;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-left: 6px;
+    vertical-align: middle;
+    transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+    padding: 0;
+  }
+  .copy-icon-btn:hover {
+    background: rgba(93,202,165,0.15);
+    border-color: rgba(93,202,165,0.4);
+    color: #5DCAA5;
+  }
+  .copy-icon-btn:active {
+    transform: scale(0.92);
+  }
+  .copy-icon-btn svg {
+    width: 12px;
+    height: 12px;
+  }
+
   /* ── MOBILE STYLES ─────────────────────────────────────────────
      All rules below scoped to max-width 640px (typical phone width).
      Desktop layout is not affected. Targets the popup, archive popout,
@@ -4527,6 +4596,123 @@
     if (gd[0]) gd[0].textContent = ag.priority;
     if (gd[1]) gd[1].textContent = cp.priority;
     if (gd[2]) gd[2].textContent = asst.priority;
+  }
+
+  // ── Clipboard copy with confirmation toast ────────────────────────
+  // Used by the copy icons next to phone numbers and email addresses
+  // throughout the People panel. Uses navigator.clipboard.writeText where
+  // available (modern browsers, HTTPS), falls back to a hidden textarea +
+  // execCommand for older browsers and non-secure contexts (the GitHub Pages
+  // host is HTTPS, but the fallback also covers cases where clipboard
+  // permissions are denied). Either path ends in the same toast.
+  // Returns true on success so callers can chain or stop bubbling.
+  var _copyToastTimer = null;
+  function _copyToClipboardWithToast(text, label) {
+    if (text == null) return false;
+    var value = String(text);
+    if (!value) return false;
+    var displayLabel = label || 'Copied';
+
+    function _showCopyToast(msg, isError) {
+      var toast = document.getElementById('copy-toast');
+      if (!toast) return;
+      var textEl = document.getElementById('copy-toast-text');
+      if (textEl) textEl.textContent = msg;
+      // Recolor for error path so user notices something went wrong.
+      if (isError) {
+        toast.style.background = 'rgba(239,68,68,0.95)';
+        toast.style.borderColor = 'rgba(248,113,113,0.5)';
+      } else {
+        toast.style.background = '';      // fall back to stylesheet default
+        toast.style.borderColor = '';
+      }
+      toast.classList.add('show');
+      if (_copyToastTimer) clearTimeout(_copyToastTimer);
+      _copyToastTimer = setTimeout(function() {
+        toast.classList.remove('show');
+        _copyToastTimer = null;
+      }, 1600);
+    }
+
+    function _fallbackCopy() {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = value;
+        // Off-screen and accessibility-hidden so the focus/scroll doesn't jump.
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.top = '0';
+        ta.style.left = '0';
+        ta.style.width = '1px';
+        ta.style.height = '1px';
+        ta.style.opacity = '0';
+        ta.style.pointerEvents = 'none';
+        document.body.appendChild(ta);
+        ta.select();
+        ta.setSelectionRange(0, value.length);
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch(e) { ok = false; }
+        document.body.removeChild(ta);
+        return ok;
+      } catch(e) { return false; }
+    }
+
+    // Prefer the modern API. It returns a Promise; if it rejects (denied
+    // permission, non-secure context, etc.), fall through to execCommand.
+    if (navigator && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      try {
+        navigator.clipboard.writeText(value).then(function() {
+          _showCopyToast(displayLabel, false);
+        }).catch(function() {
+          if (_fallbackCopy()) _showCopyToast(displayLabel, false);
+          else                 _showCopyToast('Copy failed', true);
+        });
+        return true;
+      } catch(e) {
+        // Some browsers throw synchronously rather than rejecting; same fallback path.
+        if (_fallbackCopy()) { _showCopyToast(displayLabel, false); return true; }
+        _showCopyToast('Copy failed', true);
+        return false;
+      }
+    }
+    // No Clipboard API available — go straight to fallback.
+    if (_fallbackCopy()) { _showCopyToast(displayLabel, false); return true; }
+    _showCopyToast('Copy failed', true);
+    return false;
+  }
+
+  // Build the inline copy icon HTML for use in template strings. Pass the value
+  // to copy and an optional toast label ("Phone copied", "Email copied", etc.).
+  // The value is escaped to be safe inside an HTML attribute (single quotes
+  // and backslashes); other HTML chars are not in phone/email values in
+  // practice but the encoder handles them defensively.
+  function _copyIconHtml(value, label) {
+    // Skip the button entirely if there's nothing to copy (empty/null value).
+    var raw = String(value == null ? '' : value);
+    if (!raw) return '';
+    // Escape for embedding inside a single-quoted JS string literal that itself
+    // sits inside a double-quoted HTML attribute. Order matters: backslashes
+    // first, then quotes that would terminate either layer.
+    var safeVal   = raw
+      .replace(/\\/g, '\\\\')   // backslash → escaped backslash (JS layer)
+      .replace(/'/g,  "\\'")    // single quote → escaped single quote (JS layer)
+      .replace(/"/g,  '&quot;') // double quote → HTML entity (HTML attribute layer)
+      .replace(/</g,  '&lt;')   // angle bracket → HTML entity
+      .replace(/>/g,  '&gt;');
+    var rawLabel  = String(label || 'Copied');
+    var safeLabel = rawLabel
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g,  "\\'")
+      .replace(/"/g,  '&quot;')
+      .replace(/</g,  '&lt;')
+      .replace(/>/g,  '&gt;');
+    var titleAttr = rawLabel.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+    return '<button type="button" class="copy-icon-btn" title="' + titleAttr + '" ' +
+           'onclick="event.preventDefault();event.stopPropagation();_copyToClipboardWithToast(\'' + safeVal + '\',\'' + safeLabel + '\');return false;">' +
+           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+             '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>' +
+             '<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>' +
+           '</svg></button>';
   }
 
   // Valid IPA scores are 1, 2, or 3. Everything else (0, '', null, undefined, NaN) = not scored.
@@ -13664,12 +13850,38 @@
   }
 
   // Persist current _researchData back to the saved record on the sheet.
-  // Used by background tasks (disambig retry, future enrichment passes) that update
-  // researchData after the record was already saved. Mirrors the deep-search
-  // persistence flow (line ~17030): archive-view mode uses the cached archive
-  // record so it captures the same researchData the user is looking at; active-edit
-  // mode rebuilds from the form so any in-flight edits ride along.
+  // Used by background tasks (disambig retry, competitors, deep search, company
+  // intel, attack plan, future enrichment passes) that update researchData after
+  // the record was already saved.
+  //
+  // Two modes:
+  //   - Archive-view: popup is open over a saved record without loading it into
+  //     the form. Use the cached archive record, merge the live _researchData
+  //     fields into its researchData JSON, send the full archive record.
+  //   - Active-edit: the saved record is loaded into the form. Rebuild from
+  //     the form via _buildCurrentRecord() so any in-flight edits ride along.
+  //
+  // The merge in archive-view mode covers every researchData field that any
+  // enrichment task could update. If you add a new enrichment that mutates
+  // _researchData, add the field name to PERSIST_FIELDS below.
   // Best-effort: failure leaves the in-memory data intact and is non-fatal.
+  var _PERSIST_FIELDS = [
+    // Core company details (could be updated by disambig retry)
+    'companyName', 'domain', 'employees', 'industry', 'blurb', 'revenue',
+    'foundedYear', 'companyPhone', 'companyLinkedIn', 'contactLinkedIn',
+    // People (decisionMakers from disambig, keyPeople from deep search, contactPerson from research)
+    'contactPerson', 'decisionMakers', 'keyPeople', 'deepSearchLog',
+    // News & events (could be re-fetched)
+    'recentNews', 'eventsSite', 'eventsWeb', 'observances', 'tradeShows',
+    'socialMedia',
+    // Sales tools (these are the ones that were silently dropping)
+    'salesHooks', 'competitors',
+    'companyIntel', 'companyTalkingPoints',
+    'attackPlan', 'attackPlans', 'attackPlanActive',
+    // Cost tracking
+    'searchCostUSD', 'searchDuration'
+  ];
+
   function _persistResearchUpdate() {
     try {
       if (_currentArchiveRecordId && Array.isArray(_archiveCache)) {
@@ -13678,17 +13890,22 @@
           // Update the archive record's researchData JSON in place, then send the whole record.
           try {
             var rd = typeof arc.researchData === 'string' ? JSON.parse(arc.researchData) : (arc.researchData || {});
-            // Merge the live researchData fields (don't overwrite the whole object since
-            // archive may carry derived fields the live data doesn't track).
-            if (_researchData.companyLinkedIn) rd.companyLinkedIn = _researchData.companyLinkedIn;
-            if (_researchData.decisionMakers)  rd.decisionMakers  = _researchData.decisionMakers;
-            if (_researchData.searchCostUSD)   rd.searchCostUSD   = _researchData.searchCostUSD;
+            // Merge every persist-tracked field from live _researchData into the
+            // archived rd. Safe to overwrite because _researchData was populated
+            // from this same archive record on open (see openResearchFromRecord),
+            // so any change since then is the newest truth.
+            for (var i = 0; i < _PERSIST_FIELDS.length; i++) {
+              var k = _PERSIST_FIELDS[i];
+              if (_researchData[k] !== undefined) rd[k] = _researchData[k];
+            }
             arc.researchData = JSON.stringify(rd);
           } catch(e) { /* if parse fails, skip the merge but still try to persist */ }
           gsPost({ action: 'updateRecord', record: arc }, { fireAndForget: true });
         }
       } else if (_savedRecordId && _savedRecordId !== 'pending') {
         // Active-edit: rebuild from the form so any unsaved field edits go too.
+        // _buildCurrentRecord serializes the full _researchData via JSON.stringify
+        // so all fields propagate naturally without needing the field list.
         var rec = _buildCurrentRecord();
         rec.id = _savedRecordId;
         gsPost({ action: 'updateRecord', record: rec }, { fireAndForget: true });
@@ -17502,6 +17719,7 @@
         '<div style="flex:1;min-width:0;">' +
           '<div style="font-size:9px;font-weight:600;color:#B8BBCC;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:1px;">Switchboard / Main</div>' +
           '<a href="tel:' + coPhone.replace(/[^0-9+]/g,'') + '" style="font-size:14px;font-weight:600;color:var(--text);text-decoration:none;">' + coPhone + '</a>' +
+          _copyIconHtml(coPhone, 'Phone copied') +
         '</div>' +
         '<button onclick="(function(p){var el=document.getElementById(\'f-phone\');if(el){el.value=p;el.dispatchEvent(new Event(\'input\',{bubbles:true}));}})(\'' + coPhoneSafe + '\')" style="font-size:10px;font-weight:600;padding:5px 10px;border-radius:5px;background:rgba(93,202,165,0.1);border:1px solid rgba(93,202,165,0.35);color:#5DCAA5;cursor:pointer;">Use</button>' +
       '</div>';
@@ -17514,7 +17732,7 @@
         var cpInitials = contactName.split(' ').map(function(w){return w[0]||'';}).slice(0,2).join('').toUpperCase();
         var cpLinks = '';
         if (cp.linkedin && cp.linkedin.match(/^https?:\/\//)) cpLinks += '<a href="' + cp.linkedin + '" target="_blank" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;color:#B8BBCC;background:rgba(139,143,168,0.1);border:1px solid rgba(139,143,168,0.3);border-radius:4px;padding:2px 7px;text-decoration:none;margin-right:4px;">in LinkedIn</a>';
-        if (cp.email) cpLinks += '<a href="mailto:' + cp.email + '" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;color:#34d399;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.25);border-radius:4px;padding:2px 7px;text-decoration:none;margin-right:4px;">✉ ' + cp.email + ' (inferred)</a>';
+        if (cp.email) cpLinks += '<a href="mailto:' + cp.email + '" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;color:#34d399;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.25);border-radius:4px;padding:2px 7px;text-decoration:none;margin-right:4px;">✉ ' + cp.email + ' (inferred)</a>' + _copyIconHtml(cp.email, 'Email copied');
         html += '<div style="background:#1e1c2e;border:1px solid rgba(139,143,168,0.35);border-radius:10px;padding:12px 14px;margin-bottom:10px;">' +
           '<div style="font-size:9px;font-weight:600;color:#B8BBCC;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">AI-inferred — verify before use</div>' +
           '<div style="display:flex;align-items:center;gap:10px;">' +
@@ -17554,7 +17772,7 @@
         var initials = (p.name||'').split(' ').map(function(w){return w[0]||'';}).slice(0,2).join('').toUpperCase();
         var socialLinks = '';
         if (p.linkedin) { var _liUrl = p.linkedin.match(/^https?:\/\//) ? p.linkedin : 'https://' + p.linkedin; socialLinks += '<a href="' + _liUrl + '" target="_blank" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;color:#60a5fa;background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.25);border-radius:4px;padding:2px 7px;text-decoration:none;margin-right:4px;">in LinkedIn</a>'; }
-        if (p.email) socialLinks += '<a href="mailto:' + p.email + '" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;color:#34d399;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.25);border-radius:4px;padding:2px 7px;text-decoration:none;margin-right:4px;">✉ Email</a>';
+        if (p.email) socialLinks += '<a href="mailto:' + p.email + '" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;color:#34d399;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.25);border-radius:4px;padding:2px 7px;text-decoration:none;margin-right:4px;">✉ Email</a>' + _copyIconHtml(p.email, 'Email copied');
         if (p.twitter) socialLinks += '<a href="' + p.twitter + '" target="_blank" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;color:var(--text-muted);background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.2);border-radius:4px;padding:2px 7px;text-decoration:none;margin-right:4px;">𝕏 Twitter</a>';
         return '<div style="background:#211f30;border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;margin-bottom:8px;">' +
           '<div style="display:flex;align-items:center;gap:10px;">' +
@@ -17580,7 +17798,7 @@
         var initials = (p.name||'').split(' ').map(function(w){return w[0]||'';}).slice(0,2).join('').toUpperCase();
         var links = '';
         if (p.linkedin) { var _kpLiUrl = p.linkedin.match(/^https?:\/\//) ? p.linkedin : 'https://' + p.linkedin; links += '<a href="' + _kpLiUrl + '" target="_blank" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;color:#60a5fa;background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.25);border-radius:4px;padding:2px 7px;text-decoration:none;margin-right:4px;">in LinkedIn</a>'; }
-        if (p.email) links += '<a href="mailto:' + p.email + '" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;color:#34d399;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.25);border-radius:4px;padding:2px 7px;text-decoration:none;margin-right:4px;">✉ Email</a>';
+        if (p.email) links += '<a href="mailto:' + p.email + '" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;color:#34d399;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.25);border-radius:4px;padding:2px 7px;text-decoration:none;margin-right:4px;">✉ Email</a>' + _copyIconHtml(p.email, 'Email copied');
         var confColor = p.confidence === 'high' ? '#5DCAA5' : p.confidence === 'low' ? '#f87171' : '#facc15';
         return '<div style="background:#211f30;border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;margin-bottom:8px;">' +
           '<div style="display:flex;align-items:center;gap:10px;">' +
@@ -17920,11 +18138,11 @@
           emptyEl.querySelector('div > p:last-of-type').innerHTML = 'Try adding more detail to the company info or run research first.' + reason;
         }
       }
-      // Auto-save updated research data
-      try { if (_savedRecordId && _savedRecordId !== 'pending') {
-        var rec = _buildCurrentRecord(); rec.id = _savedRecordId;
-        gsPost({ action: 'updateRecord', record: rec });
-      }} catch(e) {}
+      // Auto-save updated research data. Routes through _persistResearchUpdate which
+      // handles both archive-view mode (record opened from archive popout) and
+      // active-edit mode (record loaded into form). Without this, running competitors
+      // from the archive popout would not save the result back to the sheet.
+      try { _persistResearchUpdate(); } catch(e) {}
     })
     .catch(function(err) {
       console.warn('[VRC] Competitors fetch failed:', err);
@@ -18030,10 +18248,8 @@
         _researchData.companyTalkingPoints = Array.isArray(ciObj.talkingPoints) ? ciObj.talkingPoints : [];
         if (content) { content.innerHTML = formatted; content.style.display = 'block'; }
         if (empty) empty.style.display = 'none';
-        try { if (_savedRecordId && _savedRecordId !== 'pending') {
-          var rec = _buildCurrentRecord(); rec.id = _savedRecordId;
-          gsPost({ action: 'updateRecord', record: rec });
-        }} catch(e) {}
+        // Persist via _persistResearchUpdate so this works in archive-view mode too.
+        try { _persistResearchUpdate(); } catch(e) {}
       } else {
         if (content) content.innerHTML = '<span style="color:#f87171;font-size:11px;">Could not generate. Try running AI research first.</span>';
       }
@@ -18275,10 +18491,8 @@
         _researchData.attackPlanActive = playType;
         _researchData.attackPlan = html; // legacy field kept in sync for backend compat
         populateAttackPlanPanel();
-        try { if (_savedRecordId && _savedRecordId !== 'pending') {
-          var rec = _buildCurrentRecord(); rec.id = _savedRecordId;
-          gsPost({ action: 'updateRecord', record: rec });
-        }} catch(e) {}
+        // Persist via _persistResearchUpdate so this works in archive-view mode too.
+        try { _persistResearchUpdate(); } catch(e) {}
       } else {
         body.innerHTML = '<div style="padding:20px;text-align:center;font-size:12px;color:#f87171;">Could not generate '+def.label+'. Try running AI research first, then retry.</div>' +
           '<div style="text-align:center;margin-top:10px;"><button onclick="populateAttackPlanPanel()" style="height:28px;padding:0 14px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:transparent;color:var(--text-muted);font-size:10px;font-weight:600;cursor:pointer;">Back to plays</button></div>';
@@ -19207,5 +19421,10 @@
 
 <div id="dup-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;" onclick="dismissDupBanner()"></div>
 <div id="dup-banner" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;width:360px;max-width:calc(100vw - 32px);border-radius:10px;overflow:hidden;box-shadow:0 24px 48px rgba(0,0,0,0.6);background:var(--surface);"></div>
+<!-- Copy-to-clipboard toast — single shared element, populated by _copyToClipboardWithToast() -->
+<div id="copy-toast" class="copy-toast" role="status" aria-live="polite">
+  <svg class="copy-toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+  <span id="copy-toast-text">Copied</span>
+</div>
 </body>
 </html>
