@@ -14086,7 +14086,27 @@
   }
 
   function _pdfDateHelpers() {
-    function parse(s) { if(!s) return null; var d = new Date(String(s).replace(/(\w+ \d+)[-\u2013]\d+/,'$1').replace(/varies/i,'')); return isNaN(d.getTime()) ? null : d; }
+    function parse(s) {
+      if (!s) return null;
+      var raw = String(s).trim();
+      if (!raw) return null;
+      // Multi-day range cleanup: 'March 15-17, 2026' -> 'March 15, 2026'
+      raw = raw.replace(/(\w+ \d+)[\-\u2013]\d+/, '$1').replace(/varies/i, '');
+      // Reject TBD / vague / recurrence-only markers even when they include a year.
+      // Without these guards, JS Date(...) silently falls back to year-only parsing
+      // for strings like 'TBD 2026' or 'Spring 2026' and treats them as Jan 1 of
+      // that year, producing badges like '121 days ago' on events that have no
+      // specific date. Also catches 'Q1' etc which used to fail by accident.
+      if (/\b(tbd|tba|unknown|annual|quarterly|monthly|weekly|biennial|recurring)\b/i.test(raw)) return null;
+      if (/\b(spring|summer|fall|autumn|winter|early|mid|late|q[1-4])\b/i.test(raw)) return null;
+      // Require an actual month signal or numeric date. Year-only strings refuse to parse.
+      var hasMonth = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(raw);
+      var hasNumericDate = /\d{1,2}[\/\-]\d{1,2}/.test(raw);
+      var hasIso = /\d{4}-\d{2}-\d{2}/.test(raw);
+      if (!hasMonth && !hasNumericDate && !hasIso) return null;
+      var d = new Date(raw);
+      return isNaN(d.getTime()) ? null : d;
+    }
     function daysAway(s) { var d = parse(s); if(!d) return null; var t = new Date(); t.setHours(0,0,0,0); return Math.round((d - t) / 86400000); }
     function badge(s) { var diff=daysAway(s); if(diff===null)return ''; if(diff<0)return ' <span style="color:#94a3b8;font-size:9px;font-weight:700;">['+Math.abs(diff)+'d ago]</span>'; if(diff===0)return ' <span style="color:#059669;font-size:9px;font-weight:700;">[TODAY]</span>'; if(diff<=30)return ' <span style="color:#c2410c;font-size:9px;font-weight:700;">['+diff+'d away]</span>'; return ' <span style="color:#64748b;font-size:9px;">['+diff+'d away]</span>'; }
     function sortByDate(arr) { var now=new Date();now.setHours(0,0,0,0);var nowT=now.getTime(); return (arr||[]).slice().sort(function(a,b){ var ta=parse(a.date),tb=parse(b.date); var taT=ta?ta.getTime():null,tbT=tb?tb.getTime():null; var aF=taT!==null&&taT>=nowT,bF=tbT!==null&&tbT>=nowT; if(aF&&bF)return taT-tbT; if(!aF&&!bF){if(taT===null&&tbT===null)return 0;if(taT===null)return 1;if(tbT===null)return -1;return tbT-taT;} return aF?-1:1; }); }
@@ -14899,7 +14919,21 @@
   }
 
   function _daysUntilEvt(dateStr) {
-    var s = dateStr ? dateStr.replace(/-\d+\s/, ' ') : '';
+    if (!dateStr) return null;
+    var s = String(dateStr).trim();
+    if (!s) return null;
+    // Mirror the rejection logic in _pdfDateHelpers.parse so the events panel
+    // and the trade-shows / PDF render share the same idea of what's parseable.
+    // See _pdfDateHelpers for full reasoning; in short, JS Date(...) silently
+    // falls back to year-only parsing for vague strings, producing wrong
+    // countdowns. These guards force null in those cases.
+    s = s.replace(/(\w+ \d+)[\-\u2013]\d+/, '$1');
+    if (/\b(tbd|tba|unknown|annual|quarterly|monthly|weekly|biennial|recurring|varies)\b/i.test(s)) return null;
+    if (/\b(spring|summer|fall|autumn|winter|early|mid|late|q[1-4])\b/i.test(s)) return null;
+    var hasMonth = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(s);
+    var hasNumericDate = /\d{1,2}[\/\-]\d{1,2}/.test(s);
+    var hasIso = /\d{4}-\d{2}-\d{2}/.test(s);
+    if (!hasMonth && !hasNumericDate && !hasIso) return null;
     var d = new Date(s);
     if (isNaN(d)) return null;
     var t = new Date(); t.setHours(0,0,0,0); d.setHours(0,0,0,0);
