@@ -8812,13 +8812,19 @@
   var _activityFilter = 'all';
   var _activitySearch = '';
 
-  function setActivityFilter(f) { _activityFilter = f; _activityPage = 0; _renderActivityCard(); }
-  function setActivitySearch(v) { _activitySearch = v.trim().toLowerCase(); _activityPage = 0; _renderActivityCard(); }
+  // Recent panel handlers refuse to act while AI research is running. The
+  // visual lock in _lockForResearch dims and disables pointer-events on the
+  // whole card; these guards are belt-and-suspenders in case anything bypasses
+  // the visual treatment (e.g. keyboard events on a still-focused search input).
+  function setActivityFilter(f) { if (_researchUILocked) return; _activityFilter = f; _activityPage = 0; _renderActivityCard(); }
+  function setActivitySearch(v) { if (_researchUILocked) return; _activitySearch = v.trim().toLowerCase(); _activityPage = 0; _renderActivityCard(); }
 
   function activityPageUp() {
+    if (_researchUILocked) return;
     if (_activityPage > 0) { _activityPage--; _renderActivityCard(); }
   }
   function activityPageDown() {
+    if (_researchUILocked) return;
     var archive = _archiveCache || [];
     var filtered = _applyActivityFilters(archive);
     var totalPages = Math.max(1, Math.ceil(filtered.length / _ACTIVITY_PAGE_SIZE));
@@ -8989,6 +8995,8 @@
   }
 
   function activityRowClick(id) {
+    // Refuse during AI research — opening another record mid-pipeline would clobber state.
+    if (_researchUILocked) return;
     // Ensure archive cache has this record
     var r = (_archiveCache||[]).find(function(x){ return String(x.id)===String(id); }) ||
             getRecords().find(function(x){ return String(x.id)===String(id); });
@@ -11655,6 +11663,13 @@
     document.querySelectorAll('.clear-tile-btn').forEach(function(b) {
       b.style.pointerEvents = 'none'; b.style.opacity = '0.35';
     });
+    // Recent / activity card — disable filters, search, pagination, and row clicks
+    // while research is running. Handler guards (setActivityFilter, etc.) provide
+    // defense in depth, but the visual treatment is what users actually see.
+    var actCard = document.getElementById('activity-card-body');
+    if (actCard) { actCard.style.pointerEvents = 'none'; actCard.style.opacity = '0.5'; }
+    var actSearch = document.getElementById('activity-search-input');
+    if (actSearch && document.activeElement === actSearch) actSearch.blur();
   }
 
   function _unlockForResearch() {
@@ -11685,6 +11700,9 @@
     document.querySelectorAll('.clear-tile-btn').forEach(function(b) {
       b.style.pointerEvents = ''; b.style.opacity = '';
     });
+    // Restore activity card to interactive state
+    var actCard = document.getElementById('activity-card-body');
+    if (actCard) { actCard.style.pointerEvents = ''; actCard.style.opacity = ''; }
     checkCopyReady();
   }
 
