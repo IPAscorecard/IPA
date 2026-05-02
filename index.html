@@ -3391,6 +3391,60 @@
           </div>
         </div>
 
+        <!-- AI Models -->
+        <!-- Lets you swap which Anthropic models the tool uses without editing Code.gs.
+             Two slots: search-heavy (P1, P2, disambig retry) and parallel/background
+             (hooks, attack plan, deep search, CI). Per-Mtok prices feed the cost dashboard;
+             keep them in sync when you change a model. Empty fields fall back to the
+             hardcoded defaults in Code.gs (claude-sonnet-4 / claude-haiku-4-5). -->
+        <div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:16px;">
+          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:10px;font-weight:600;">AI Models</div>
+          <div style="font-size:10px;color:var(--text-dim, #717378);margin-bottom:10px;line-height:1.5;">
+            Override the models used by the AI research pipeline. Leave a field blank to use the built-in default.
+            Update prices when you change a model so the cost dashboard stays accurate.
+            <a href="https://docs.claude.com/en/docs/about-claude/models" target="_blank" rel="noopener" style="color:#60a5fa;text-decoration:none;">Anthropic models docs &rarr;</a>
+          </div>
+
+          <!-- Search-heavy slot -->
+          <div style="background:rgba(96,165,250,0.05);border:1px solid rgba(96,165,250,0.15);border-radius:7px;padding:10px;margin-bottom:8px;">
+            <div style="font-size:10px;font-weight:600;color:#60a5fa;letter-spacing:0.04em;margin-bottom:6px;">SEARCH-HEAVY (Phase 1, Phase 2, disambig)</div>
+            <input type="text" id="cfg-model-search-id" placeholder="claude-sonnet-4-20250514" oninput="_validateModelConfig()" style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid var(--border-hover);background:var(--bg);color:var(--text);font-size:12px;font-family:monospace;box-sizing:border-box;margin-bottom:6px;">
+            <div style="display:flex;gap:6px;">
+              <div style="flex:1;display:flex;align-items:center;gap:4px;">
+                <span style="font-size:10px;color:#717378;flex-shrink:0;">$</span>
+                <input type="number" step="0.01" min="0" id="cfg-model-search-input-price" placeholder="3.00" oninput="_validateModelConfig()" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--border-hover);background:var(--bg);color:var(--text);font-size:12px;font-family:monospace;">
+                <span style="font-size:9px;color:#717378;flex-shrink:0;">/Mtok in</span>
+              </div>
+              <div style="flex:1;display:flex;align-items:center;gap:4px;">
+                <span style="font-size:10px;color:#717378;flex-shrink:0;">$</span>
+                <input type="number" step="0.01" min="0" id="cfg-model-search-output-price" placeholder="15.00" oninput="_validateModelConfig()" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--border-hover);background:var(--bg);color:var(--text);font-size:12px;font-family:monospace;">
+                <span style="font-size:9px;color:#717378;flex-shrink:0;">/Mtok out</span>
+              </div>
+            </div>
+            <!-- Live validation status: shows "Effective: $X in / $Y out" or an error/warning -->
+            <div id="cfg-model-search-status" style="font-size:10px;color:#717378;margin-top:6px;line-height:1.4;min-height:14px;"></div>
+          </div>
+
+          <!-- Parallel/background slot -->
+          <div style="background:rgba(93,202,165,0.05);border:1px solid rgba(93,202,165,0.15);border-radius:7px;padding:10px;">
+            <div style="font-size:10px;font-weight:600;color:#5DCAA5;letter-spacing:0.04em;margin-bottom:6px;">PARALLEL/BACKGROUND (hooks, attack plan, CI, deep search)</div>
+            <input type="text" id="cfg-model-parallel-id" placeholder="claude-haiku-4-5-20251001" oninput="_validateModelConfig()" style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid var(--border-hover);background:var(--bg);color:var(--text);font-size:12px;font-family:monospace;box-sizing:border-box;margin-bottom:6px;">
+            <div style="display:flex;gap:6px;">
+              <div style="flex:1;display:flex;align-items:center;gap:4px;">
+                <span style="font-size:10px;color:#717378;flex-shrink:0;">$</span>
+                <input type="number" step="0.01" min="0" id="cfg-model-parallel-input-price" placeholder="1.00" oninput="_validateModelConfig()" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--border-hover);background:var(--bg);color:var(--text);font-size:12px;font-family:monospace;">
+                <span style="font-size:9px;color:#717378;flex-shrink:0;">/Mtok in</span>
+              </div>
+              <div style="flex:1;display:flex;align-items:center;gap:4px;">
+                <span style="font-size:10px;color:#717378;flex-shrink:0;">$</span>
+                <input type="number" step="0.01" min="0" id="cfg-model-parallel-output-price" placeholder="5.00" oninput="_validateModelConfig()" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--border-hover);background:var(--bg);color:var(--text);font-size:12px;font-family:monospace;">
+                <span style="font-size:9px;color:#717378;flex-shrink:0;">/Mtok out</span>
+              </div>
+            </div>
+            <div id="cfg-model-parallel-status" style="font-size:10px;color:#717378;margin-top:6px;line-height:1.4;min-height:14px;"></div>
+          </div>
+        </div>
+
         <!-- Signature Block -->
         <div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:16px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
@@ -4832,7 +4886,14 @@
     'cfg-company-tagline':'companyTagline', 'cfg-cost-alert':'costAlert', 'cfg-timezone':'timezone',
     'cfg-sig-text':'sigText',
     'cfg-tier-name-ag':'tierNameAG', 'cfg-tier-name-cp':'tierNameCP', 'cfg-tier-name-asst':'tierNameAsst',
-    'cfg-tier-priority-ag':'tierPriorityAG', 'cfg-tier-priority-cp':'tierPriorityCP', 'cfg-tier-priority-asst':'tierPriorityAsst'
+    'cfg-tier-priority-ag':'tierPriorityAG', 'cfg-tier-priority-cp':'tierPriorityCP', 'cfg-tier-priority-asst':'tierPriorityAsst',
+    // AI Models — empty values fall through to backend hardcoded defaults
+    'cfg-model-search-id':'modelSearchId',
+    'cfg-model-search-input-price':'modelSearchInputPrice',
+    'cfg-model-search-output-price':'modelSearchOutputPrice',
+    'cfg-model-parallel-id':'modelParallelId',
+    'cfg-model-parallel-input-price':'modelParallelInputPrice',
+    'cfg-model-parallel-output-price':'modelParallelOutputPrice'
   };
 
   function loadAppSettingsUI() {
@@ -4850,6 +4911,8 @@
     var logoPreview = document.getElementById('cfg-logo-preview');
     if (logoPreview && s.companyLogo) { logoPreview.src = s.companyLogo; logoPreview.style.display = 'block'; }
     _renderCouponList();
+    // Paint model config status rows so user sees current effective pricing on open
+    try { _validateModelConfig(); } catch(e) {}
   }
 
   function _renderCouponList() {
@@ -4997,7 +5060,120 @@
     menu.innerHTML = html;
   }
 
+  // ── Model Config Validation ─────────────────────────────────────
+  // Defaults match the backend hardcoded fallbacks in Code.gs _getModelConfig_().
+  // If you change those, change these too. The 5x warning threshold catches
+  // typos like entering "30" instead of "3.00" but won't fire on legitimate
+  // pricing differences between model tiers.
+  var _MODEL_DEFAULTS = {
+    search:   { input: 3.0,  output: 15.0, label: 'Sonnet-class' },
+    parallel: { input: 1.0,  output: 5.0,  label: 'Haiku-class' }
+  };
+
+  // Validate one slot. Returns {ok, level, msg} where level is 'ok', 'warning', or 'error'.
+  // Rules:
+  //   - both ID and prices empty: ok, falls back to backend default
+  //   - ID set, either price empty or 0: error, save blocked
+  //   - ID set, both prices set, but >5x off defaults: warning, save allowed
+  //   - ID empty but prices set: warning ("prices ignored without model ID")
+  function _validateModelSlot(slot) {
+    var idEl   = document.getElementById('cfg-model-' + slot + '-id');
+    var inEl   = document.getElementById('cfg-model-' + slot + '-input-price');
+    var outEl  = document.getElementById('cfg-model-' + slot + '-output-price');
+    if (!idEl || !inEl || !outEl) return { ok: true, level: 'ok', msg: '' };
+    var id  = (idEl.value || '').trim();
+    var inV = (inEl.value || '').trim();
+    var outV = (outEl.value || '').trim();
+    var inN  = parseFloat(inV);
+    var outN = parseFloat(outV);
+    var def  = _MODEL_DEFAULTS[slot];
+
+    // Effective values that backend will actually use (mirrors _getModelConfig_ logic)
+    var effIn  = (!isNaN(inN)  && inN  > 0) ? inN  : def.input;
+    var effOut = (!isNaN(outN) && outN > 0) ? outN : def.output;
+    var effSrc = (id ? 'custom' : 'default') + ' / ' +
+                 (((!isNaN(inN) && inN > 0) || (!isNaN(outN) && outN > 0)) ? 'custom prices' : 'default prices');
+
+    // Rule: ID set but prices missing → error
+    if (id) {
+      var missing = [];
+      if (isNaN(inN)  || inN  <= 0) missing.push('input');
+      if (isNaN(outN) || outN <= 0) missing.push('output');
+      if (missing.length) {
+        return {
+          ok: false, level: 'error',
+          msg: '\u26a0 Model ID set but ' + missing.join(' & ') + ' price missing. Cost tracking will be wrong.'
+        };
+      }
+    }
+
+    // Rule: ID empty but prices set → warning (prices will be ignored)
+    if (!id && ((!isNaN(inN) && inN > 0) || (!isNaN(outN) && outN > 0))) {
+      return {
+        ok: true, level: 'warning',
+        msg: '\u26a0 Prices set but no model ID. Backend will ignore these and use ' + def.label + ' defaults ($' + def.input.toFixed(2) + ' / $' + def.output.toFixed(2) + ' per Mtok).'
+      };
+    }
+
+    // Rule: prices off by >5x from defaults → warning (likely typo)
+    if (id && !isNaN(inN) && !isNaN(outN) && inN > 0 && outN > 0) {
+      var inRatio  = Math.max(inN  / def.input,  def.input  / inN);
+      var outRatio = Math.max(outN / def.output, def.output / outN);
+      if (inRatio > 5 || outRatio > 5) {
+        return {
+          ok: true, level: 'warning',
+          msg: '\u26a0 Prices differ from ' + def.label + ' defaults ($' + def.input.toFixed(2) + ' / $' + def.output.toFixed(2) + ') by more than 5x. Double-check before saving.'
+        };
+      }
+    }
+
+    // OK case: show effective rate so user can verify
+    return {
+      ok: true, level: 'ok',
+      msg: '\u2713 Effective: $' + effIn.toFixed(2) + ' in / $' + effOut.toFixed(2) + ' out per Mtok' +
+           (id ? '' : ' (using built-in default)')
+    };
+  }
+
+  // Run validation on both slots, paint inline status, return overall ok.
+  // Called from oninput handlers and from saveAppSettings.
+  function _validateModelConfig() {
+    var ok = true;
+    ['search', 'parallel'].forEach(function(slot) {
+      var r = _validateModelSlot(slot);
+      var statusEl = document.getElementById('cfg-model-' + slot + '-status');
+      if (statusEl) {
+        statusEl.textContent = r.msg;
+        if (r.level === 'error')        statusEl.style.color = '#f87171';
+        else if (r.level === 'warning') statusEl.style.color = '#f59e0b';
+        else                            statusEl.style.color = '#5DCAA5';
+      }
+      // Visually dim the price inputs when the model ID is empty (signals they
+      // don't apply to the actual API call). Doesn't disable, just dims.
+      var idEl = document.getElementById('cfg-model-' + slot + '-id');
+      var idEmpty = idEl ? !(idEl.value || '').trim() : true;
+      ['-input-price', '-output-price'].forEach(function(suffix) {
+        var pEl = document.getElementById('cfg-model-' + slot + suffix);
+        if (pEl) pEl.style.opacity = idEmpty ? '0.5' : '';
+      });
+      if (!r.ok) ok = false;
+    });
+    return ok;
+  }
+
   function saveAppSettings() {
+    // Block save if any model config is in an error state (e.g. ID set without prices).
+    // Warnings are non-blocking but still painted into the status rows.
+    if (!_validateModelConfig()) {
+      var msg = document.getElementById('settings-save-msg');
+      if (msg) {
+        msg.textContent = 'Fix model config errors before saving';
+        msg.style.color = '#f87171';
+        msg.style.display = 'inline';
+        setTimeout(function(){ msg.style.display = 'none'; msg.textContent = '\u2713 Settings saved'; msg.style.color = '#5DCAA5'; }, 4000);
+      }
+      return;
+    }
     Object.keys(_settingsFieldMap).forEach(function(elId) {
       var el = document.getElementById(elId);
       if (el) _appSettings[_settingsFieldMap[elId]] = el.value.trim();
@@ -5756,6 +5932,21 @@
         '</tr>';
     }).join('');
 
+    // Footer reads model info from settings (falls back to hardcoded defaults).
+    // Built dynamically so a model swap in the admin panel reflects on next report.
+    var _ms = (_appSettings && _appSettings.modelSearchId) || 'claude-sonnet-4';
+    var _mp = (_appSettings && _appSettings.modelParallelId) || 'claude-haiku-4-5';
+    var _msInPrice  = parseFloat((_appSettings && _appSettings.modelSearchInputPrice)  || 3) || 3;
+    var _msOutPrice = parseFloat((_appSettings && _appSettings.modelSearchOutputPrice) || 15) || 15;
+    var _mpInPrice  = parseFloat((_appSettings && _appSettings.modelParallelInputPrice)  || 1) || 1;
+    var _mpOutPrice = parseFloat((_appSettings && _appSettings.modelParallelOutputPrice) || 5) || 5;
+    // Strip date suffix for compact display: "claude-sonnet-4-20250514" -> "claude-sonnet-4"
+    var _msShort = _ms.replace(/-\d{8}$/, '');
+    var _mpShort = _mp.replace(/-\d{8}$/, '');
+    var _modelFooter = 'IPA Score Card &middot; Anthropic API (' + _msShort + ' / ' + _mpShort + ') &middot; ' +
+      'Search $' + _msInPrice.toFixed(2) + '/$' + _msOutPrice.toFixed(2) + ' &middot; ' +
+      'Background $' + _mpInPrice.toFixed(2) + '/$' + _mpOutPrice.toFixed(2) + ' per Mtok';
+
     var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>QLP API Usage Report</title>' +
     '<style>body{font-family:Arial,sans-serif;font-size:12px;color:#333436;margin:32px;}' +
     'h1{font-size:18px;margin:0 0 4px;}h2{font-size:12px;font-weight:normal;color:var(--text-muted);margin:0 0 24px;}' +
@@ -5779,7 +5970,7 @@
     '</div>' +
     '<table><thead><tr><th>Date</th><th>Rep</th><th>Company</th><th>Tokens</th><th>Cost</th><th>Running Total</th></tr></thead>' +
     '<tbody>' + rowsHtml + '</tbody></table>' +
-    '<div class="footer">IPA Score Card &middot; Anthropic API (claude-haiku-4-5) &middot; $0.80/M input &middot; $4.00/M output</div>' +
+    '<div class="footer">' + _modelFooter + '</div>' +
     '</body></html>';
 
     var w = window.open('', '_blank');
@@ -6037,6 +6228,13 @@
       return '<tr><td>' + r.week + '</td><td>' + r.startDate + ' – ' + r.endDate + '</td><td>' + r.calls + '</td><td>$' + (r.costUSD||0).toFixed(4) + '</td></tr>';
     }).join('');
 
+    // Footer reads model info from settings (falls back to hardcoded defaults).
+    var _msmt   = (_appSettings && _appSettings.modelSearchId)   || 'claude-sonnet-4';
+    var _mpmt   = (_appSettings && _appSettings.modelParallelId) || 'claude-haiku-4-5';
+    var _msmtShort = _msmt.replace(/-\d{8}$/, '');
+    var _mpmtShort = _mpmt.replace(/-\d{8}$/, '');
+    var _stmtModelFooter = 'IPA Score Card &middot; Anthropic API (' + _msmtShort + ' / ' + _mpmtShort + ')';
+
     var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>QLP AI Statement ' + s._month + ' ' + s._year + '</title>' +
     '<style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:12px;color:#1e293b;margin:0;padding:32px;}' +
     '.header{border-bottom:3px solid #1D9E75;padding-bottom:16px;margin-bottom:24px;}' +
@@ -6078,7 +6276,7 @@
     '<tr><td>Expense Category</td><td>' + tf.expenseCategory + '</td></tr>' +
     '<tr class="highlight"><td>Total Deductible Amount</td><td>$' + (tf.totalDeductibleUSD||0).toFixed(4) + '</td></tr>' +
     '</tbody></table>' +
-    '<div class="footer"><span>IPA Score Card &middot; Anthropic API (claude-haiku-4-5)</span><span>Confidential — For Internal Use</span></div>' +
+    '<div class="footer"><span>' + _stmtModelFooter + '</span><span>Confidential — For Internal Use</span></div>' +
     '</body></html>';
 
     var w = window.open('', '_blank');
