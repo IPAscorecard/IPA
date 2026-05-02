@@ -14019,7 +14019,7 @@
         }
       });
       try { updateTabCounts(); } catch(e) {}
-      // Flash success, then re-lock form
+      // Flash success, then return to resting state
       btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Updated';
       btn.style.background = 'rgba(29,158,117,0.2)';
       btn.style.borderColor = 'rgba(29,158,117,0.6)';
@@ -14028,9 +14028,14 @@
       setTimeout(function() {
         btn.disabled = false;
         btn.innerHTML = origHtml;
-        btn.style.background = '';
-        btn.style.borderColor = '';
-        btn.style.color = '';
+        // Restore the resting green colors (matches the inline style on the button
+        // markup at line 4218). Clearing these to '' would fall back to browser
+        // default (white background) since this button has no CSS class — the
+        // theme lives entirely in inline styles.
+        btn.style.background = 'rgba(29,158,117,0.12)';
+        btn.style.borderColor = 'rgba(29,158,117,0.45)';
+        btn.style.color = '#5DCAA5';
+        btn.style.opacity = '';
         try { lockForm(); } catch(e) {}
       }, 1500);
     })
