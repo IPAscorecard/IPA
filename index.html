@@ -2944,6 +2944,161 @@
     100%    { opacity: 0; transform: scaleY(1.4); transform-origin: top; }
   }
   .foam-drip { animation: foamDrip 3s ease-in-out infinite; transform-origin: top; }
+
+  /* ── MOBILE STYLES ─────────────────────────────────────────────
+     All rules below scoped to max-width 640px (typical phone width).
+     Desktop layout is not affected. Targets the popup, archive popout,
+     records drawer, and other read-mostly surfaces. The main IPA form
+     is intentionally not mobile-optimized; reps enter records on desktop.
+     ───────────────────────────────────────────────────────────── */
+  @media (max-width: 640px) {
+
+    /* RESEARCH POPUP CONTAINER */
+    /* Remove the 16px overlay padding so popup fills the screen edge-to-edge */
+    .research-overlay { padding: 0; }
+    .research-popup {
+      max-width: 100vw;
+      width: 100vw;
+      height: 100vh;
+      max-height: 100vh;
+      border-radius: 0;
+      border-left: none;
+      border-right: none;
+      border-top: none;
+      border-bottom: none;
+    }
+    .research-popup-header {
+      padding: 12px 14px;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .research-blurb { padding: 10px 14px; font-size: 12px; line-height: 1.55; }
+    .iv-check-wrap { padding: 10px 14px; }
+
+    /* TAB STRIP — horizontal scroll instead of forced equal flex */
+    .research-tabs {
+      overflow-x: auto;
+      overflow-y: hidden;
+      flex-wrap: nowrap;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .research-tabs::-webkit-scrollbar { display: none; }
+    .research-tab {
+      flex: 0 0 auto;
+      padding: 11px 12px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .research-tab-badge { font-size: 9px; padding: 0 5px; }
+    /* The S.C. Preview tab embeds an HTML/PT toggle widget; hide the toggle on phones,
+       leaving just the tab label. Toggle is still reachable on desktop. */
+    #rtab-email #preview-mode-label,
+    #rtab-email #preview-mode-toggle { display: none !important; }
+
+    /* PANEL CONTENT — tighten padding from 16/24 */
+    .research-panel { padding: 12px 14px; }
+
+    /* News & Events panel uses inline two-column flex (left: events 1.35 / right: news 1).
+       Stack into single column on phones. Inline styles need !important to override. */
+    #rp-events-columns {
+      flex-direction: column !important;
+      gap: 0 !important;
+    }
+    #rp-events-columns > div {
+      flex: 1 1 auto !important;
+      width: 100% !important;
+      border-right: none !important;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      padding: 12px 14px !important;
+    }
+    #rp-events-columns > div:last-child { border-bottom: none; }
+
+    /* Customer Email panel uses inline width:45% + flex:1 split.
+       Stack into single column. */
+    #rpanel-custemail > div {
+      flex-direction: column !important;
+      height: auto !important;
+    }
+    #rpanel-custemail > div > div {
+      width: 100% !important;
+      max-height: 40vh;
+      border-right: none !important;
+      border-bottom: 0.5px solid rgba(255,255,255,0.07);
+    }
+    #rpanel-custemail > div > div:last-child {
+      border-bottom: none !important;
+    }
+
+    /* Email preview iframe / HTML container — constrain to viewport width.
+       The HTML email is built for 600px desktop clients; force it to fit. */
+    .research-email-preview { max-width: 100% !important; overflow-x: auto; }
+    .research-email-preview iframe { max-width: 100%; width: 100% !important; }
+    .research-email-preview > div,
+    .research-email-preview > table { max-width: 100% !important; }
+
+    /* FOOTER — wrap and tighten */
+    .research-footer {
+      padding: 10px 12px;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .research-footer-label { display: none; }
+    .research-footer-btns { flex-wrap: wrap; }
+    .research-footer-btns button,
+    .research-footer > div > button {
+      font-size: 11px !important;
+      padding: 0 10px !important;
+      height: 32px !important;
+    }
+
+    /* ARCHIVE POPOUT MODAL */
+    /* Inline styles set max-width:460px;width:94%; override to fill screen */
+    #arc-popout-modal .rep-modal-box {
+      max-width: 100vw !important;
+      width: 100vw !important;
+      max-height: 100vh !important;
+      height: 100vh !important;
+      padding: 14px !important;
+      border-radius: 0;
+      box-sizing: border-box;
+    }
+    /* Tab row inside archive popout — three tabs (Record / Events / Follow-Up)
+       plus a close button. Don't scroll the whole row (close button would scroll
+       off); instead shrink tab padding/font so all three fit. The flex:1 spacer
+       between tabs and close still pushes close to the right edge. */
+    #arc-popout-modal .rep-modal-box button[id^="arc-tab-"] {
+      flex-shrink: 1;
+      min-width: 0;
+      white-space: nowrap;
+      font-size: 10px !important;
+      padding: 6px 8px !important;
+    }
+
+    /* RECORDS DRAWER — already uses min(780px, 95vw) so it scales,
+       but the header content can cramp. */
+    .records-drawer { width: 100vw; }
+    .records-header { padding: 12px 14px; }
+
+    /* GENERIC: PIN modal, admin overlay, statement, dup banner, etc. */
+    .rep-modal { width: min(420px, 96vw); }
+
+    /* USAGE OVERLAY (admin / api usage / statement) */
+    .usage-overlay { padding: 0 !important; }
+    .usage-overlay > div {
+      max-width: 100vw !important;
+      width: 100vw !important;
+      max-height: 100vh !important;
+      height: 100vh !important;
+      border-radius: 0 !important;
+    }
+
+    /* Touch target floor: any button under 36px gets bumped */
+    .research-tab,
+    button[id^="arc-tab-"] {
+      min-height: 36px;
+    }
+  }
 </style>
 </head>
 <body>
@@ -5326,12 +5481,30 @@
     if (!newPw) { msg.style.color = '#f87171'; msg.textContent = 'New password cannot be empty.'; return; }
     if (newPw !== confirm) { msg.style.color = '#f87171'; msg.textContent = 'Passwords do not match.'; return; }
     ADMIN_PASSWORD = newPw;
+    // Persist so the change survives page reload. Mirrors into _appSettings so any
+    // future saveAppSettings call carries the password through correctly.
+    _appSettings.adminPassword = newPw;
+    msg.style.color = '#5DCAA5';
+    msg.textContent = 'Saving...';
+    gsPost({ action: 'saveAppSettings', settings: _appSettings }, { fireAndForget: false })
+      .then(function(res) {
+        if (res && res.success !== false && !res.error) {
+          msg.style.color = '#5DCAA5';
+          msg.textContent = 'Password updated!';
+        } else {
+          msg.style.color = '#f87171';
+          msg.textContent = 'Saved locally but backend save failed. Will revert on reload.';
+        }
+        setTimeout(function() { msg.textContent = ''; }, 4000);
+      })
+      .catch(function() {
+        msg.style.color = '#f87171';
+        msg.textContent = 'Saved locally but backend save failed. Will revert on reload.';
+        setTimeout(function() { msg.textContent = ''; }, 4000);
+      });
     document.getElementById('admin-pw-current').value = '';
     document.getElementById('admin-pw-new').value = '';
     document.getElementById('admin-pw-confirm').value = '';
-    msg.style.color = '#5DCAA5';
-    msg.textContent = 'Password updated!';
-    setTimeout(function() { msg.textContent = ''; }, 3000);
   }
 
   function confirmClearAll() {
@@ -5496,6 +5669,9 @@
     if (phaseId) _processedCosts[phaseId] = true;
     var cost = parseFloat(data.costUSD);
     if (isNaN(cost) || cost < 0) return;
+    // Cache hits return costUSD: 0. No real spend, so don't increment counters or
+    // bump the per-search cost pill (it would show "$0.0000 / search" misleadingly).
+    if (cost === 0) return;
     _researchData.searchCostUSD = Math.round((_researchData.searchCostUSD || 0) * 1e6 + cost * 1e6) / 1e6;
     // Increment local counters and update badge instantly
     if (_badgeSeeded) {
@@ -9203,6 +9379,11 @@
   function resumeRecord(id) {
     var r = (_archiveCache||[]).find(function(x){ return String(x.id)===String(id); });
     if (!r) return;
+    // Abort any in-flight pipeline first. resumeRecord loads a saved record into
+    // the active form context, so a late phase fetch from the previous research
+    // session would clobber the just-loaded data with stale values. Same fix as
+    // cancelResearch and rerunResearchFromPopup. Reset on next runAIResearch (line 12310).
+    _pipelineAborted = true;
     // Clear archive view state so closeResearchPopup doesn't restore stale data
     _prevArchiveState = null;
     window._viewingArchiveRecord = null;
@@ -11311,6 +11492,11 @@
   function cancelResearch() {
     // Stop any pending debounce timer
     if (_researchTimer) { clearTimeout(_researchTimer); _researchTimer = null; }
+    // Mark pipeline as aborted so any in-flight phase fetch responses are
+    // discarded by the gate at the top of _runPhase's success handler. Without
+    // this, a fetch that resolves after cancel would re-populate _researchData
+    // that we just cleared. Reset on next runAIResearch (line 12310).
+    _pipelineAborted = true;
     // Mark as no longer in progress so the response is ignored if it comes back
     _researchInProgress = false;
     _activeFetchCount = 0;
@@ -11323,6 +11509,10 @@
     setLightbulb(false);
     _researchData = _emptyResearchData();
     _liveEmailIntent = 'checkin'; _liveEmailInstruction = ''; _liveEmailCoupon = ''; _liveEmailSelected = []; _liveEmailItems = [];
+    // Reset cache hit tracking and hide the pill so stale text doesn't carry over.
+    window._researchCacheHits = 0;
+    window._researchCacheMaxAge = 0;
+    try { _updateCachePill(); } catch(e) {}
     // Clear AI-filled green fields
     ['f-company','f-employees'].forEach(function(id) {
       var el = document.getElementById(id);
@@ -11374,9 +11564,9 @@
     var siteEl  = document.getElementById('f-website');
     var email = emailEl ? emailEl.value.trim() : '';
     var site  = siteEl  ? siteEl.value.trim()  : '';
+    // runAIResearch snapshots the flag into a closure variable and clears the global,
+    // so all phases in this run see bypass=true and the next run defaults to false.
     try { runAIResearch(email, site); } catch(e) { _logError('forceRefresh', e); }
-    // Reset bypass flag after starting (subsequent fetches in same pipeline use it via the closure)
-    setTimeout(function() { window._bypassResearchCache = false; }, 100);
   }
 
   function setPhaseIndicator(phase) {
@@ -11943,6 +12133,12 @@
     _pipelineSettled = false;
     _digPassCount = 0; // reset dig pass counter for fresh 3-pass cycle
     var _thisToken = ++_searchToken;
+    // Snapshot the bypass flag for this whole run, then clear the global so a normal
+    // Lightbulb click after this doesn't accidentally inherit the flag. P2 fires ~10-20s
+    // after P1 via setTimeout chain, so reading window._bypassResearchCache at each fetch
+    // site would race against forceRefreshResearch's 100ms reset.
+    var _bypassCacheRun = !!window._bypassResearchCache;
+    window._bypassResearchCache = false;
 
     var btn = document.getElementById('lightbulb-btn');
     if (btn) { btn.style.borderColor = ''; btn.style.background = ''; btn.style.color = ''; btn.style.filter = ''; }
@@ -12279,6 +12475,8 @@
     _pipelineAborted = false;
     window._researchCacheHits = 0;
     window._researchCacheMaxAge = 0;
+    // Hide stale cache pill from any previous run; it will re-show at pipeline end if hits occur.
+    try { _updateCachePill(); } catch(e) {}
     function _abortPipeline() {
       _pipelineAborted = true;
       _researchInProgress = false;
@@ -12288,7 +12486,7 @@
       _checkPipelineEnd(true);
     }
 
-    // ── Phase runner with 45s abort ───────────────────────────────
+    // ── Phase runner with 90s abort ───────────────────────────────
     function _runPhase(segIdx, fetchOpts, onSuccess, nextFn, onTimeout) {
       if (_pipelineAborted || _searchToken !== _thisToken) return;
       _searchStartTime = Date.now();
@@ -12434,7 +12632,7 @@
 
     // ── Fire Phase 1 — LinkedIn + Events (Sonnet) ───────────────
     _runPhase(0,
-      { action: 'runResearch', prompt: p1, rep: window._currentRep || '', bypassCache: !!window._bypassResearchCache },
+      { action: 'runResearch', prompt: p1, rep: window._currentRep || '', bypassCache: _bypassCacheRun },
       function(result, elapsed) {
         if (!result) { _abortPipeline(); return false; }
 
@@ -12521,6 +12719,18 @@
             'Maximum 8 trade shows. Sort: confirmed first, then likely, then industry-match, then by date ascending. Never include past events. If none found, return {"tradeShows":[]}.'
           ].join('\n');
           _onFetchStart();
+          // Track whether this fetch settled the counter, so that a stale settle
+          // (from a fetch whose token has expired because user cancelled and
+          // started a new pipeline) doesn't unlock the new pipeline mid-flight.
+          var _tsSettled = false;
+          function _tsSettle() {
+            if (_tsSettled) return;
+            _tsSettled = true;
+            // Only decrement if the token still matches the active pipeline.
+            // If it doesn't, the counter was already reset by cancelResearch
+            // and the new pipeline owns its own counter slot now.
+            if (_searchToken === _tsToken) _onFetchSettled();
+          }
           fetch(GS_URL, { method: 'POST', body: JSON.stringify({ action: 'runResearch', prompt: tsPrompt, rep: window._currentRep || '' }) })
           .then(function(res) { return res.text(); })
           .then(function(raw) {
@@ -12541,11 +12751,11 @@
             }
             if (data) try { _updateCostBadge(data, 'p2b-tradeshows-' + _tsToken); } catch(e) {}
           })
-          .catch(function() {}).then(_onFetchSettled, _onFetchSettled); // silent fail + track settle
+          .catch(function() {}).then(_tsSettle, _tsSettle); // silent fail + token-guarded settle
         })();
 
         _runPhase(2,
-          { action: 'runResearch', prompt: p2, rep: window._currentRep || '', bypassCache: !!window._bypassResearchCache },
+          { action: 'runResearch', prompt: p2, rep: window._currentRep || '', bypassCache: _bypassCacheRun },
           function(result, elapsed) {
             var got = false;
             if (result) {
@@ -12642,12 +12852,19 @@
                   'Schema: {"companyLinkedIn":"","decisionMakers":{"ownerExec":{"name":"","title":"","linkedin":"","email":""},"marketing":{"name":"","title":"","linkedin":"","email":""},"procurement":{"name":"","title":"","linkedin":"","email":""},"eventManager":{"name":"","title":"","linkedin":"","email":""}}}'
                 ].join('\n');
                 var retryToken = _thisToken;
-                fetch(GS_URL, { method: 'POST', body: JSON.stringify({ action: 'runResearch', prompt: disambigPrompt, rep: window._currentRep || '', bypassCache: !!window._bypassResearchCache }) })
+                fetch(GS_URL, { method: 'POST', body: JSON.stringify({ action: 'runResearch', prompt: disambigPrompt, rep: window._currentRep || '', bypassCache: _bypassCacheRun }) })
                   .then(function(r) { return r.text(); })
                   .then(function(raw) {
                     if (_searchToken !== retryToken || _pipelineAborted) return;
+                    // _safeParse returns {ok, data, error}; pull data through to _parseResult
+                    // (matches the pattern used by _runPhase). Bug fix: the previous version
+                    // passed the wrapper object straight to _parseResult and read .costUSD
+                    // off the wrapper, so retries silently failed and cost was never tracked.
                     var parsed = _safeParse(raw, 'disambig-retry');
-                    var result = parsed ? _parseResult(parsed) : null;
+                    if (!parsed.ok || !parsed.data) return;
+                    var data = parsed.data;
+                    if (data.error) { _logError('disambig-retry GAS', new Error(data.error)); return; }
+                    var result = _parseResult(data);
                     if (!result) return;
                     var changed = false;
                     var coLi = _cleanLinkedIn(result.companyLinkedIn, 'company');
@@ -12666,9 +12883,9 @@
                       }
                     }
                     // Update cost: badge UI + accumulate into per-record total so saved cost is accurate
-                    if (parsed && parsed.costUSD !== undefined) {
-                      try { _updateCostBadge(parsed); } catch(e) {}
-                      var addCost = parseFloat(parsed.costUSD) || 0;
+                    if (data.costUSD !== undefined) {
+                      try { _updateCostBadge(data, 'disambig-retry-' + retryToken); } catch(e) {}
+                      var addCost = parseFloat(data.costUSD) || 0;
                       if (addCost > 0) _researchData.searchCostUSD = (parseFloat(_researchData.searchCostUSD) || 0) + addCost;
                     }
                     if (changed) {
@@ -12754,7 +12971,7 @@
                   _researchData.companyIntel = _renderCompanyIntelHtml(ciObj);
                   _researchData.companyTalkingPoints = Array.isArray(ciObj.talkingPoints) ? ciObj.talkingPoints : [];
                   try { var ov = document.getElementById('research-overlay'); if (ov && ov.classList.contains('open')) populateCompanyIntel(); } catch(e) {}
-                  try { if (_savedRecordId) { var rec = _buildCurrentRecord(); rec.id = _savedRecordId; gsPost({ action: 'updateRecord', record: rec }); } } catch(e) {}
+                  try { if (_savedRecordId && _savedRecordId !== 'pending') { var rec = _buildCurrentRecord(); rec.id = _savedRecordId; gsPost({ action: 'updateRecord', record: rec }); } } catch(e) {}
                 } else {
                   console.warn('[CI] No structured intel extracted');
                 }
@@ -12833,6 +13050,11 @@
       try {
         var s = res.settings;
         Object.keys(s).forEach(function(k) { if (s[k] !== undefined && s[k] !== null) _appSettings[k] = s[k]; });
+        // If admin password was changed and persisted in settings, restore it.
+        // Falls back to the hardcoded default when not set.
+        if (typeof s.adminPassword === 'string' && s.adminPassword) {
+          ADMIN_PASSWORD = s.adminPassword;
+        }
         _syncTierGuide();
       } catch(e) {}
     }
@@ -13241,6 +13463,39 @@
       rec.aiEmailHtml = '';
     }
     return rec;
+  }
+
+  // Persist current _researchData back to the saved record on the sheet.
+  // Used by background tasks (disambig retry, future enrichment passes) that update
+  // researchData after the record was already saved. Mirrors the deep-search
+  // persistence flow (line ~17030): archive-view mode uses the cached archive
+  // record so it captures the same researchData the user is looking at; active-edit
+  // mode rebuilds from the form so any in-flight edits ride along.
+  // Best-effort: failure leaves the in-memory data intact and is non-fatal.
+  function _persistResearchUpdate() {
+    try {
+      if (_currentArchiveRecordId && Array.isArray(_archiveCache)) {
+        var arc = _archiveCache.find(function(x){ return String(x.id) === String(_currentArchiveRecordId); });
+        if (arc) {
+          // Update the archive record's researchData JSON in place, then send the whole record.
+          try {
+            var rd = typeof arc.researchData === 'string' ? JSON.parse(arc.researchData) : (arc.researchData || {});
+            // Merge the live researchData fields (don't overwrite the whole object since
+            // archive may carry derived fields the live data doesn't track).
+            if (_researchData.companyLinkedIn) rd.companyLinkedIn = _researchData.companyLinkedIn;
+            if (_researchData.decisionMakers)  rd.decisionMakers  = _researchData.decisionMakers;
+            if (_researchData.searchCostUSD)   rd.searchCostUSD   = _researchData.searchCostUSD;
+            arc.researchData = JSON.stringify(rd);
+          } catch(e) { /* if parse fails, skip the merge but still try to persist */ }
+          gsPost({ action: 'updateRecord', record: arc }, { fireAndForget: true });
+        }
+      } else if (_savedRecordId && _savedRecordId !== 'pending') {
+        // Active-edit: rebuild from the form so any unsaved field edits go too.
+        var rec = _buildCurrentRecord();
+        rec.id = _savedRecordId;
+        gsPost({ action: 'updateRecord', record: rec }, { fireAndForget: true });
+      }
+    } catch(e) { /* persistence failure is non-fatal, log stays in memory */ }
   }
 
   function onResubmitClick() {
@@ -13847,6 +14102,9 @@
     });
     var html = _pdfWrap('IPA Scorecard \u2014 '+name, headerHtml, contentHtml, 'Scorecard', ipaNum);
     var safeName = name.replace(/[^a-z0-9]/gi,'-').replace(/-+/g,'-').slice(0,40);
+    if (!safeName || safeName === '-') {
+      safeName = (company || 'unnamed').replace(/[^a-z0-9]/gi,'-').replace(/-+/g,'-').slice(0,40) || 'unnamed';
+    }
     var blob = new Blob([html],{type:'text/html'});
     var url  = URL.createObjectURL(blob);
     var a    = document.createElement('a');
@@ -13909,6 +14167,7 @@
     });
     var html = _pdfWrap('Company Research \u2014 '+company, headerHtml, contentHtml, 'Company Research', ipaNum);
     var safeName = company.replace(/[^a-z0-9]/gi,'-').replace(/-+/g,'-').slice(0,40);
+    if (!safeName || safeName === '-') safeName = 'unnamed';
     var blob = new Blob([html],{type:'text/html'});
     var url  = URL.createObjectURL(blob);
     var a    = document.createElement('a');
@@ -13960,6 +14219,7 @@
     var footerLabel = isROArc ? 'Company Research' : 'Scorecard';
     var html = _pdfWrap('IPA \u2014 '+(r.name||'Record'), headerHtml, contentHtml, footerLabel, r.recordNum||'');
     var safeName = (r.name||'record').replace(/[^a-z0-9]/gi,'-').replace(/-+/g,'-').slice(0,40);
+    if (!safeName || safeName === '-') safeName = (r.company||'').replace(/[^a-z0-9]/gi,'-').replace(/-+/g,'-').slice(0,40) || 'record';
     var blob = new Blob([html],{type:'text/html'});
     var url  = URL.createObjectURL(blob);
     var a    = document.createElement('a');
@@ -14406,6 +14666,15 @@
     .then(function(finalText) {
       if (loading) loading.style.display = 'none';
       textarea.style.opacity = '';
+      // Apply Anthony's no-dash rule for AI customer emails. Same regex set as
+      // generateLiveEmail at line ~14942: em/en dashes -> ", "; spaced hyphens -> ", ";
+      // remaining hyphens (in compounds like T-shirts, co-branded) -> space; collapse runs.
+      // This was missing on the event-email path, which is also a customer-facing AI email.
+      finalText = String(finalText || '')
+        .replace(/\s*[\u2014\u2013]\s*/g, ', ')
+        .replace(/\s+-\s+/g, ', ')
+        .replace(/-/g, ' ')
+        .replace(/[ \t]{2,}/g, ' ');
       // Append coupon disclaimer if applicable
       if (_liveEmailCoupon) {
         var _disc = '';
@@ -14830,8 +15099,15 @@
           }
         }
         emailText = String(emailText).replace(/\\n/g, '\n').replace(/^["']|["']$/g, '').trim();
-        // Strip dashes: em dash, en dash, and standalone hyphens
-        emailText = emailText.replace(/\s*[—–]\s*/g, ', ').replace(/\s+-\s+/g, ', ');
+        // Strip ALL dashes per Anthony's rule: AI emails contain no dashes/hyphens of any kind.
+        // Old regex only caught spaced dashes (word - word), missed compounds (T-shirts, co-branded, 12-month).
+        // Order matters: em/en dashes -> ", "; spaced hyphens -> ", " (parenthetical feel preserved);
+        //                remaining hyphens (in compounds) -> space; then collapse runs of spaces.
+        emailText = emailText
+          .replace(/\s*[\u2014\u2013]\s*/g, ', ')
+          .replace(/\s+-\s+/g, ', ')
+          .replace(/-/g, ' ')
+          .replace(/[ \t]{2,}/g, ' ');
         if (data.costUSD !== undefined) { try { _updateCostBadge(data, 'live-email-' + Date.now()); } catch(ce){} }
       } catch(e) { emailText = raw.trim(); }
 
@@ -14839,9 +15115,19 @@
       if (productLinks && productLinks.length) {
         var validLinks = productLinks.filter(function(p){ return p && p.url && /^https?:\/\//i.test(p.url); }).slice(0,3);
         if (validLinks.length) {
-          var intro = (linksIntro || 'Here are a few ideas worth a look:').replace(/\s*[—–]\s*/g, ', ').replace(/\s+-\s+/g, ', ').trim();
+          // Same rule as the body: strip every dash and hyphen. Apply to intro and title only,
+          // never to the URL (URLs legitimately contain hyphens).
+          var _stripDashes = function(s) {
+            return String(s)
+              .replace(/\s*[\u2014\u2013]\s*/g, ', ')
+              .replace(/\s+-\s+/g, ', ')
+              .replace(/-/g, ' ')
+              .replace(/[ \t]{2,}/g, ' ')
+              .trim();
+          };
+          var intro = _stripDashes(linksIntro || 'Here are a few ideas worth a look:');
           var linkLines = validLinks.map(function(p) {
-            var title = (p.title || 'Check this out').replace(/\s*[—–]\s*/g, ', ').replace(/\s+-\s+/g, ', ').trim();
+            var title = _stripDashes(p.title || 'Check this out');
             return title + ': ' + p.url;
           }).join('\n');
           emailText = emailText.replace(/\s+$/,'') + '\n\n' + intro + '\n' + linkLines;
@@ -15000,7 +15286,8 @@
       (_researchData.eventsWeb   && _researchData.eventsWeb.length)   ||
       (_researchData.observances && _researchData.observances.length) ||
       _researchData.companyLinkedIn || _researchData.revenue ||
-      (_researchData.recentNews && _researchData.recentNews.length));
+      (_researchData.recentNews && _researchData.recentNews.length) ||
+      (_researchData.deepSearchLog && _researchData.deepSearchLog.length));
   }
 
   function onEmailScorecardClick() {
@@ -15678,6 +15965,11 @@
 
   function rerunResearchFromPopup() {
     // Reset research state and re-trigger
+    // Abort the prior pipeline first, so any in-flight phase fetch responses
+    // that return after this point are discarded by the gate at the top of
+    // _runPhase's success handler. Without this, a stale fetch could write
+    // into the just-emptied _researchData. Reset on next runAIResearch (line 12310).
+    _pipelineAborted = true;
     _researchData = _emptyResearchData();
     _researchInProgress = false;
     _lastResearchKey = '';
@@ -16643,11 +16935,13 @@
     if (!btn) return;
     var state = _deepSearchBlockState();
     if (state.blocked) {
+      btn.disabled = true;
       btn.style.opacity = '0.5';
       btn.style.cursor = 'not-allowed';
       btn.title = 'Blocked: ' + state.consecutiveZeros + ' recent attempts returned no new people. Lifts in ' + state.daysUntilLift + ' day' + (state.daysUntilLift === 1 ? '' : 's') + '.';
       btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Locked · ' + state.daysUntilLift + 'd';
     } else {
+      btn.disabled = false;
       btn.style.opacity = '1';
       btn.style.cursor = 'pointer';
       btn.title = '';
@@ -16897,10 +17191,10 @@
           } else if (rawCount > 0 && afterClean === 0) {
             // AI returned people but they all duplicated existing ones
             btn.textContent = 'All ' + rawCount + ' already known';
-            setTimeout(function(){ btn.textContent = '+ Deep Search'; }, 4000);
+            setTimeout(function(){ try { _updateDeepSearchButtonState(); } catch(e) {} }, 4000);
           } else {
             btn.textContent = 'No new people found';
-            setTimeout(function(){ btn.textContent = '+ Deep Search'; }, 3000);
+            setTimeout(function(){ try { _updateDeepSearchButtonState(); } catch(e) {} }, 3000);
           }
         }
         // Surface diagnostic in cost label so rep knows what happened
@@ -16924,7 +17218,7 @@
           } else {
             btn.textContent = 'No new people found';
           }
-          setTimeout(function(){ btn.textContent = '+ Deep Search'; }, 4000);
+          setTimeout(function(){ try { _updateDeepSearchButtonState(); } catch(e) {} }, 4000);
         }
         if (costEl && data && data.costUSD !== undefined) {
           var diag2 = '$' + parseFloat(data.costUSD).toFixed(4) + ' · ' + elapsed + 's · AI returned 0';
@@ -16943,11 +17237,13 @@
           rawCount: rawForLog,
           added: addedForLog,
           dupes: dupesForLog < 0 ? 0 : dupesForLog,
-          returnedZero: rawForLog === 0,
+          // "Zero" for block purposes means "no new people added" — whether AI returned
+          // nothing OR returned only duplicates. Both cost money and yield nothing useful.
+          returnedZero: addedForLog === 0,
           costUSD: (data && typeof data.costUSD === 'number') ? data.costUSD : 0,
           elapsed: parseFloat(elapsed) || 0
         });
-        // Persist back to archive cache if applicable
+        // Persist back to archive cache if applicable (in-memory snapshot)
         if (_arcRecord) {
           try {
             var _arcRd2 = typeof _arcRecord.researchData === 'string' ? JSON.parse(_arcRecord.researchData) : (_arcRecord.researchData || {});
@@ -16955,6 +17251,24 @@
             _arcRecord.researchData = JSON.stringify(_arcRd2);
           } catch(e) {}
         }
+        // Persist to the sheet so the log survives across sessions.
+        // Two cases need different handling:
+        //   1. Archive-view mode (popup is open over a saved record without loading it
+        //      into the form): use the cached archive record, update its researchData
+        //      JSON, and send the FULL archive record back.
+        //   2. Active-edit mode (the saved record IS loaded into the form): build from
+        //      the form via _buildCurrentRecord() to capture any in-flight edits too.
+        try {
+          if (_arcRecord && _currentArchiveRecordId) {
+            // Archive-view: send the in-memory archive record (which we just updated)
+            gsPost({ action: 'updateRecord', record: _arcRecord });
+          } else if (_savedRecordId && _savedRecordId !== 'pending') {
+            // Active-edit: build from form
+            var rec = _buildCurrentRecord();
+            rec.id = _savedRecordId;
+            gsPost({ action: 'updateRecord', record: rec });
+          }
+        } catch(e) { /* persistence failure is non-fatal — log is still in memory */ }
         _updateDeepHistoryPill();
       } catch(e) { /* logging failure is non-fatal */ }
       if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
@@ -16964,7 +17278,8 @@
     })
     .catch(function(){
       clearInterval(_dpTimer);
-      if (btn) { btn.disabled = false; btn.textContent = '+ Deep Search'; btn.style.opacity = '1'; }
+      if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+      try { _updateDeepSearchButtonState(); } catch(e) {}
     });
   }
 
@@ -17408,7 +17723,7 @@
         }
       }
       // Auto-save updated research data
-      try { if (_savedRecordId) {
+      try { if (_savedRecordId && _savedRecordId !== 'pending') {
         var rec = _buildCurrentRecord(); rec.id = _savedRecordId;
         gsPost({ action: 'updateRecord', record: rec });
       }} catch(e) {}
@@ -17517,7 +17832,7 @@
         _researchData.companyTalkingPoints = Array.isArray(ciObj.talkingPoints) ? ciObj.talkingPoints : [];
         if (content) { content.innerHTML = formatted; content.style.display = 'block'; }
         if (empty) empty.style.display = 'none';
-        try { if (_savedRecordId) {
+        try { if (_savedRecordId && _savedRecordId !== 'pending') {
           var rec = _buildCurrentRecord(); rec.id = _savedRecordId;
           gsPost({ action: 'updateRecord', record: rec });
         }} catch(e) {}
@@ -17762,7 +18077,7 @@
         _researchData.attackPlanActive = playType;
         _researchData.attackPlan = html; // legacy field kept in sync for backend compat
         populateAttackPlanPanel();
-        try { if (_savedRecordId) {
+        try { if (_savedRecordId && _savedRecordId !== 'pending') {
           var rec = _buildCurrentRecord(); rec.id = _savedRecordId;
           gsPost({ action: 'updateRecord', record: rec });
         }} catch(e) {}
