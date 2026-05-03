@@ -14446,7 +14446,7 @@
         '<td style="padding:10px 14px;vertical-align:middle;text-align:right;white-space:nowrap;">' +
           ivPill + pvPill + avPill +
           '<span style="display:inline-block;padding:5px 12px;background:'+o.tierBlockBg+';border:1px solid '+o.tierBdr+';border-radius:5px;text-align:center;vertical-align:middle;margin-left:4px;">' +
-            '<span style="display:block;font-size:14px;font-weight:700;color:#fff;letter-spacing:0.03em;line-height:1.1;">'+(o.isRO?'AG':o.tierName)+'</span>' +
+            '<span style="display:block;font-size:14px;font-weight:700;color:#fff;letter-spacing:0.03em;line-height:1.1;">'+o.tierName+'</span>' +
             '<span style="display:block;font-size:8px;color:'+o.tierClr+';font-weight:600;letter-spacing:0.04em;line-height:1.2;margin-top:1px;">'+(o.isRO?'RESEARCH ONLY':(o.priority||'SCORED'))+'</span>' +
           '</span>' +
         '</td>' +
@@ -14882,7 +14882,7 @@
       isRO:isROArc, isHot:r.hot,
       ivScore:r.iv||0, pvScore:r.pv||0, avScore:r.av||0, totalScore:isROArc?(r.iv||0):total, stars:stars,
       tierBg:tc.bg, tierBlockBg:tc.blockBg, tierClr:tc.clr, tierBdr:tc.bdr,
-      tierName:isROArc?'RO':(r.owner||tierTd.name), priority:isROArc?'RESEARCH ONLY':(r.priority||tierTd.priority),
+      tierName:isROArc?tierTd.name:(r.owner||tierTd.name), priority:isROArc?'RESEARCH ONLY':(r.priority||tierTd.priority),
       industry:rd.industry, website:r.website||rd.domain||'', employees:rd.employees||r.employees,
       foundedYear:rd.foundedYear, blurb:rd.blurb,
       searchCost:rd.searchCostUSD?'$'+rd.searchCostUSD:'',
