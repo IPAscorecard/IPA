@@ -3606,7 +3606,7 @@
         <div class="usage-stat-lbl">Total Tokens Used</div>
       </div>
     </div>
-    <div style="font-size:10px;color:var(--text-dim, #717378);padding:0 16px 8px;line-height:1.5;font-style:italic;">Note: each customer research run generates roughly 6 to 8 API calls (Phase 1 search, Phase 2 search, Company Intel, Sales Hooks, Trade Shows, Competitors, etc.). Customer-level lookup count coming in a future update.</div>
+    <div style="font-size:10px;color:var(--text-dim, #717378);padding:0 16px 8px;line-height:1.5;font-style:italic;">Note: each customer research run generates roughly 4 to 5 API calls (Phase 0 verification, Phase 1 search, Phase 2 search with hooks, Trade Shows, optional dig pass). Company Intel and Competitors are on-demand and only fire when the rep clicks the corresponding button. Customer-level lookup count coming in a future update.</div>
     <div class="usage-table-wrap">
       <table class="usage-table" id="usage-table">
         <thead>
@@ -9729,6 +9729,7 @@
       _researchData.attackPlanActive = rd.attackPlanActive || '';
       _researchData.companyIntel   = rd.companyIntel || '';
       _researchData.companyTalkingPoints = Array.isArray(rd.companyTalkingPoints) ? rd.companyTalkingPoints : [];
+      _researchData.groundTruth    = (rd.groundTruth && typeof rd.groundTruth === 'object') ? rd.groundTruth : null;
       _researchData.searchCostUSD  = parseFloat(rd.searchCostUSD) || 0;
       _researchData.searchDuration = rd.searchDuration || null;
       _researchData.ivState = 'none';
@@ -9825,6 +9826,7 @@
       _researchData.keyPeople      = Array.isArray(rd.keyPeople) ? rd.keyPeople : [];
       _researchData.deepSearchLog  = Array.isArray(rd.deepSearchLog) ? rd.deepSearchLog : [];
       _researchData.socialMedia    = (rd.socialMedia && typeof rd.socialMedia === 'object') ? rd.socialMedia : {};
+      _researchData.groundTruth    = (rd.groundTruth && typeof rd.groundTruth === 'object') ? rd.groundTruth : null;
       _researchData.searchCostUSD  = parseFloat(rd.searchCostUSD) || 0;
       _researchData.searchDuration = rd.searchDuration || null;
       // IV check state is transient — reset
@@ -9894,6 +9896,7 @@
       _researchData.attackPlanActive = _rdRestore.attackPlanActive || '';
       _researchData.companyIntel   = _rdRestore.companyIntel || '';
       _researchData.companyTalkingPoints = Array.isArray(_rdRestore.companyTalkingPoints) ? _rdRestore.companyTalkingPoints : [];
+      _researchData.groundTruth    = (_rdRestore.groundTruth && typeof _rdRestore.groundTruth === 'object') ? _rdRestore.groundTruth : null;
       _researchData.searchCostUSD  = parseFloat(_rdRestore.searchCostUSD) || 0;
       _researchData.searchDuration = _rdRestore.searchDuration || null;
       // IV check state is transient (not persisted) — reset to prevent stale mismatch display
@@ -11483,6 +11486,7 @@
       salesHooks:[], searchCostUSD:0, searchDuration:null, tradeShows:[],
       competitors:[], attackPlan:'', attackPlans:{}, attackPlanActive:'',
       companyIntel:'', companyTalkingPoints:[],
+      groundTruth:null,
       deepSearchLog:[]
     };
   }
@@ -11889,13 +11893,14 @@
       _renderSegBadges(2, total2, passes2, total2 ? G : R, total2 ? 'green' : 'red');
     }
 
-    // Seg 3 — Hooks
+    // Seg 3 — Hooks (now folded into P2; zero hooks isn't a failure, just
+    // means P2 didn't synthesize useful ones for this company)
     var hookCount = (rd.salesHooks || []).length;
     if (_phaseTimes[3] !== null && _segPassData[3].length > 0) {
       _segPassData[3][_segPassData[3].length - 1].count = hookCount;
       var total3 = hookCount;
       var passes3 = _buildPassDeltas(_segPassData[3], total3);
-      _renderSegBadges(3, total3, passes3, total3 ? G : R, total3 ? 'green' : 'red');
+      _renderSegBadges(3, total3, passes3, total3 ? G : '#94a3b8', total3 ? 'green' : 'red');
     }
   }
 
@@ -12637,6 +12642,7 @@
     _researchData.attackPlans = {};
     _researchData.attackPlanActive = '';
     _researchData.salesHooks = [];
+    _researchData.groundTruth = null;
 
     var btn = document.getElementById('lightbulb-btn');
     if (btn) { btn.style.borderColor = ''; btn.style.background = ''; btn.style.color = ''; btn.style.filter = ''; }
@@ -13065,27 +13071,31 @@
       );
     }
     p1Lines.push(
-      "Use 3 searches: " +
-        "(1) '" + searchDomain + " events 2025 2026' — events on their own site → eventsSite. " +
-        "(2) '" + company + " upcoming events galas conferences fundraisers 2025 2026' — events they participate in or sponsor → eventsWeb. " +
-        "(3) 'site:linkedin.com/in " + company + " (\"marketing director\" OR \"VP marketing\" OR \"event manager\" OR \"procurement manager\" OR \"CEO\" OR \"president\" OR \"owner\")' — decision makers.",
+      "Use up to 2 searches, prioritized highest-value first: " +
+        "(1 - REQUIRED) 'site:linkedin.com/in " + company + " (\"marketing director\" OR \"VP marketing\" OR \"event manager\" OR \"procurement manager\" OR \"CEO\" OR \"president\" OR \"owner\")' — decision makers. " +
+        "(2 - REQUIRED) '" + searchDomain + " events 2025 2026' — events on their own site → eventsSite. " +
+        "Skip the general '" + company + " upcoming events' search — only run it if both required searches return nothing useful.",
       "Rules: Only return URLs that appear verbatim in search results. Never fabricate or construct URLs. Every event needs a 'source' URL where you found it.",
       'Schema: {"companyLinkedIn":"","contactLinkedIn":"","contactPerson":{"found":false,"title":"","linkedin":"","email":"","confidence":"high|medium|low"},"decisionMakers":{"ownerExec":{"name":"","title":"","linkedin":"","email":""},"marketing":{"name":"","title":"","linkedin":"","email":""},"procurement":{"name":"","title":"","linkedin":"","email":""},"eventManager":{"name":"","title":"","linkedin":"","email":""}},"eventsSite":[{"title":"","date":"Mon D YYYY","venue":"","source":"","recurring":false,"notes":""}],"eventsWeb":[{"title":"","date":"Mon D YYYY","venue":"","source":"","recurring":false,"notes":""}]}'
     );
     var p1 = p1Lines.join("\n");
 
-    // ── PHASE 2 — Company details + observances (Haiku, secondary) ──
+    // ── PHASE 2 — Company details + observances + hooks (Haiku, secondary) ──
+    // Sales Hooks are generated INSIDE this same call rather than a separate
+    // request. P2 already has all the context it needs (employees, revenue,
+    // news, observances, blurb), so adding hooks generation costs only the
+    // extra output tokens (~$0.005) instead of a separate ~$0.022 call.
     var p2 = [
       "Research " + company + " (" + searchDomain + ") for QLP (promotional products). Today: " + todayStr + ". Return only valid JSON.",
-      "Use up to 3 searches: " +
-        "(1) '" + searchDomain + " contact' — extract MAIN PHONE (switchboard) and full corporate ADDRESS from the contact page or footer. Note any social media icon URLs in the footer. " +
-        "(2) '" + searchDomain + " about' OR '" + company + " company size revenue' — extract employees (number), revenue, founded year, industry, 1-sentence blurb. Note any social media icon URLs in the footer. " +
-        "(3) Industry awareness months and observances for this company.",
+      "Use up to 2 searches, both required: " +
+        "(1) '" + searchDomain + " contact' — extract MAIN PHONE (switchboard), full corporate ADDRESS from contact page or footer, and any social media icon URLs (Facebook, Instagram, X/Twitter, TikTok, YouTube, Snapchat) found in the page footer. " +
+        "(2) '" + searchDomain + " about' OR '" + company + " company size revenue' — extract employees (number), revenue, founded year, industry, 1-sentence blurb, and recent news. Also note industry awareness months / observances if visible.",
       "Address and phone are HIGH PRIORITY — they're typically on the contact page or website footer. Partial address OK. Don't guess phone numbers.",
-      "Social media URLs: while reading the contact and about pages, capture official Facebook, Instagram, X/Twitter, TikTok, YouTube, and Snapchat URLs from the footer or social-icon links. Only return URLs that appear verbatim on the company's pages. Leave empty if not found — do NOT guess or construct.",
+      "Social media URLs: capture official Facebook, Instagram, X/Twitter, TikTok, YouTube, and Snapchat URLs from the footer or social-icon links. Only return URLs that appear verbatim on the company's pages. Leave empty if not found — do NOT guess or construct.",
       "Phone format: digits with separators (e.g. (555) 123-4567 or +1 555 123 4567).",
       "Employees: total full-time headcount as a plain integer (e.g. 5500 or 50000). Use commas if it helps readability (e.g. 5,500). Do NOT concatenate multiple numbers. If the source says '5,000 to 7,000', return 5000. Maximum plausible value is 2,500,000 (Walmart-scale). If unsure or a figure looks impossibly large, return empty string.",
-      'Schema: {"companyName":"","employees":"","industry":"Healthcare|Education|Finance|Nonprofit|Retail|Technology|Manufacturing|Government|Legal|Real Estate or empty","blurb":"","revenue":"e.g. $2M","foundedYear":"YYYY","companyPhone":"","socialMedia":{"facebook":"","instagram":"","twitter":"","tiktok":"","youtube":"","snapchat":""},"recentNews":[{"headline":"","date":"Mon YYYY","sourceUrl":""}],"observances":[{"title":"","date":"Mon D YYYY","notes":""}],"corporateAddress":{"street":"","suite":"","city":"","state":"","zip":""}}'
+      "SALES HOOKS — also generate 3 to 5 sales hooks for QLP (promotional products distributor) based on the company facts above. Each hook = a specific factual finding + a concrete promo product pitch tied to it. Focus on: company milestones (anniversaries, growth), recent news/PR, hiring surges, expansions (new locations, markets), brand identity angles, awards/recognition, industry trends they should capitalize on. Do NOT generate hooks about events, conferences, trade shows, or observances — those are tracked separately. The 'finding' should be a specific fact the rep can mention on the call. The 'pitch' should be a concrete product suggestion. Include a 'date' field ONLY if the finding is time-sensitive (anniversary, fiscal quarter end). If no useful hooks, return an empty salesHooks array.",
+      'Schema: {"companyName":"","employees":"","industry":"Healthcare|Education|Finance|Nonprofit|Retail|Technology|Manufacturing|Government|Legal|Real Estate or empty","blurb":"","revenue":"e.g. $2M","foundedYear":"YYYY","companyPhone":"","socialMedia":{"facebook":"","instagram":"","twitter":"","tiktok":"","youtube":"","snapchat":""},"recentNews":[{"headline":"","date":"Mon YYYY","sourceUrl":""}],"observances":[{"title":"","date":"Mon D YYYY","notes":""}],"corporateAddress":{"street":"","suite":"","city":"","state":"","zip":""},"salesHooks":[{"type":"milestone|expansion|hiring|news|brand|award|industry","finding":"one sentence specific fact","pitch":"one sentence concrete swag/promo product angle","date":"Mon D YYYY or empty","source":"URL or empty"}]}'
     ].join("\n");
 
     // ── Hooks prompt builder (uses context from P1+P2, no search) ─
@@ -13303,6 +13313,23 @@
                 _researchData.observances = result.observances.filter(function(o){ return o && o.title; }).map(_cleanObservance);
                 got = true;
               }
+              // Sales Hooks generated inside P2 (cost-saving — see P2 prompt note above).
+              // Same cleaning logic as the previous standalone hooks call: filter empties,
+              // strip tags from finding/pitch, normalize source URLs.
+              if (result.salesHooks && Array.isArray(result.salesHooks) && result.salesHooks.length) {
+                _researchData.salesHooks = result.salesHooks.filter(function(h){ return h && h.finding; }).map(function(h) {
+                  var c = Object.assign({}, h);
+                  if (c.source) {
+                    var m = String(c.source).match(/https?:\/\/[^\s"'<>]+/);
+                    c.source = m ? m[0].replace(/[.,;:!?)]+$/,'') : '';
+                  }
+                  c.finding = _stripTags(c.finding || '');
+                  c.pitch = _stripTags(c.pitch || '');
+                  return c;
+                });
+                got = true;
+                try { populateHooksPanel(); } catch(e) {}
+              }
               if (result.corporateAddress && (result.corporateAddress.street || result.corporateAddress.city || result.corporateAddress.zip)) {
                 var ca = result.corporateAddress;
                 ca.street = _stripTags(ca.street); ca.suite = _stripTags(ca.suite);
@@ -13450,84 +13477,50 @@
               try { _autoSaveResearch(); } catch(e) {}
             }
 
-            // Fire Company Intel in parallel with hooks (P2 data now available)
-            (function() {
-              var _ciToken = _thisToken;
-              var rd = _researchData;
-              var _ciCompany = rd.companyName || company || '';
-              if (!_ciCompany || rd.companyIntel) { console.log('[CI] Skipped: company=' + _ciCompany + ', already=' + !!rd.companyIntel); return; }
-              console.log('[CI] Firing Company Intel for: ' + _ciCompany + ' | industry: ' + (rd.industry||'none'));
-              var ciCtx = ['Company: ' + _ciCompany, rd.industry ? 'Industry: ' + rd.industry : '', rd.blurb ? 'About: ' + rd.blurb : '', rd.employees ? 'Employees: ' + rd.employees : '', rd.revenue ? 'Revenue: ' + rd.revenue : '', rd.foundedYear ? 'Founded: ' + rd.foundedYear : '', rd.domain ? 'Website: ' + rd.domain : ''].filter(Boolean).join('\n');
-              // If verification produced a ground-truth anchor, prepend it so CI can't drift
-              // to a different entity that shares the same name. The empty-on-doubt clause
-              // tells the model to leave fields blank rather than confabulate when the data
-              // doesn't match the anchored entity.
-              var ciAnchor = '';
-              if (_groundTruth && _groundTruth.verifiedName) {
-                ciAnchor = [
-                  'GROUND TRUTH FROM ' + (rd.domain || searchDomain) + ':',
-                  'Entity self-identifies as: ' + _groundTruth.verifiedName + (_groundTruth.verifiedTagline ? ' — ' + _groundTruth.verifiedTagline : ''),
-                  _groundTruth.verifiedFocus ? 'What they do: ' + _groundTruth.verifiedFocus : '',
-                  _groundTruth.sourceQuote ? 'Source quote from homepage: "' + _groundTruth.sourceQuote + '"' : '',
-                  'Your brief must describe THIS entity. Any content inconsistent with the self-description above is wrong, even if you have prior knowledge of an organization with a similar name.',
-                  ''
-                ].filter(Boolean).join('\n');
-              }
-              var ciPrompt = [
-                'You are a sales intelligence researcher. Generate a company background brief for a sales rep.',
-                ciAnchor,
-                ciCtx, '',
-                'Hard rules:',
-                '- Every section must be consistent with the ground truth above and the website at ' + (rd.domain || searchDomain) + '.',
-                '- If you cannot find specific verifiable information about this exact organization at this exact website, return empty strings for those fields. Do NOT fabricate founder names, milestones, or culture details to fill space.',
-                '- Better to return empty fields than content that contradicts the website.',
-                '',
-                'Return ONLY valid JSON with this structure:',
-                '{"companyIntel":{"origin":"How/why founded, key founder names if verifiably known, 2-3 sentences or empty","mission":"What drives them, stated purpose, 2-3 sentences or empty","growth":"Key milestones and expansions, 2-3 sentences or empty","culture":"Internal culture, community involvement, causes, 2-3 sentences or empty","edge":"What differentiates them from competitors, 2-3 sentences or empty","talkingPoints":["Specific thing to say that impresses a founder","Another specific insider fact","Third talking point"]}}'
-              ].join('\n');
-              gsPost({ action: 'runResearch', prompt: ciPrompt, rep: window._currentRep || '', noSearch: false })
-              .then(function(data2) {
-                if (_pipelineAborted || _searchToken !== _ciToken) { console.log('[CI] Aborted or token mismatch'); return; }
-                console.log('[CI] Response:', JSON.stringify(data2).slice(0, 300));
-                if (data2) try { _updateCostBadge(data2, 'ci-' + _ciToken); } catch(e) {}
-                var ciObj = null;
-                if (data2 && data2.result) {
-                  var r2 = data2.result;
-                  if (typeof r2 === 'string') { try { r2 = JSON.parse(r2); } catch(e) {} }
-                  if (r2 && r2.companyIntel) ciObj = r2.companyIntel;
-                } else if (data2 && data2.error) {
-                  console.warn('[CI] Backend error:', data2.error);
-                }
-                if (ciObj) {
-                  console.log('[CI] Success: structured intel received');
-                  _researchData.companyIntel = _renderCompanyIntelHtml(ciObj);
-                  _researchData.companyTalkingPoints = Array.isArray(ciObj.talkingPoints) ? ciObj.talkingPoints : [];
-                  try { var ov = document.getElementById('research-overlay'); if (ov && ov.classList.contains('open')) populateCompanyIntel(); } catch(e) {}
-                  try { if (_savedRecordId && _savedRecordId !== 'pending') { var rec = _buildCurrentRecord(); rec.id = _savedRecordId; gsPost({ action: 'updateRecord', record: rec }); } } catch(e) {}
-                } else {
-                  console.warn('[CI] No structured intel extracted');
-                }
-              }).catch(function(err) { console.warn('[CI] Fetch failed:', err); });
-            })();
+            // Company Intel: on-demand only. The "GENERATE INTEL" button on the
+            // Company Intel tab is already wired to generateCompanyIntel() — rep
+            // clicks it when they want the brief. Auto-fire was previously here
+            // (~$0.02-$0.03 per research) and ran even when reps never opened
+            // the tab. The on-demand path includes the same Phase 0 anchoring
+            // logic for hallucination prevention.
 
-            fetch(GS_URL, { method: 'POST', body: JSON.stringify({ action: 'runResearch', prompt: _buildHooksPrompt(), rep: window._currentRep || '', noSearch: true }) })
-            .then(function(r) { return r.text(); })
-            .then(function(raw) {
-              if (_pipelineAborted || _searchToken !== _thisToken) { _researchInProgress = false; return; }
-              console.log('Hooks raw response:', raw.slice(0, 500));
-              var data; try { data = JSON.parse(raw); } catch(e) { console.warn('Hooks JSON parse failed:', raw.slice(0,200)); data = null; }
-              if (!data) { _finishHooks(null); return; }
-              _updateCostBadge(data);
-              console.log('Hooks data.result type:', typeof data.result, '| error:', data.error || 'none');
-              var hooks = null;
-              var hr = _parseResult(data);
-              console.log('Hooks hr:', JSON.stringify(hr).slice(0, 300));
-              if (hr && typeof hr === 'object' && hr.salesHooks) hooks = hr.salesHooks;
-              else if (typeof hr === 'string') { try { var hp = JSON.parse(hr); if (hp && hp.salesHooks) hooks = hp.salesHooks; } catch(e) {} }
-              console.log('Hooks extracted:', hooks ? hooks.length + ' hooks' : 'null');
-              _finishHooks(hooks);
-            })
-            .catch(function() { _finishHooks(null); });
+            // Sales Hooks now come from P2 directly (folded into that response
+            // to save ~$0.017 per research). By the time this block runs, hooks
+            // are already in _researchData.salesHooks. We just settle the pipeline
+            // and update the button label to "Rerun Sales Hooks" if any were
+            // generated, or leave "GET SALES HOOKS!" as a fallback regenerate path.
+            (function _settlePipeline() {
+              if (_searchToken !== _thisToken) return;
+              _researchInProgress = false;
+              setLightbulbLoading(false);
+              setLightbulb(true);
+              setPhaseIndicator('done');
+              try { _updateCachePill(); } catch(e) {}
+              try { var ov = document.getElementById('research-overlay'); if (ov && ov.style.display !== 'none') populateResearchPopup(); } catch(e) {}
+              try { showDigButton(); } catch(e) {}
+              // Lock Phase 3 (Analyze = Sales Hooks) immediately. Hooks are now
+              // generated inside P2's response so the Analyze phase completes at
+              // the same moment as Details. Use a tiny elapsed value (0.1s) since
+              // there's no separate hooks call to time.
+              var hooksCount = (_researchData.salesHooks || []).length;
+              try { _lockPhaseTime(3, 0.1, hooksCount ? '#5DCAA5' : '#94a3b8'); } catch(e) {}
+              try { _refreshSegCounts(); } catch(e) {}
+              try { updateFollowupCard(); } catch(e) {}
+              // Update hooks button — "Rerun Sales Hooks" if any hooks were generated
+              // by P2, otherwise the original "GET SALES HOOKS!" call-to-action
+              var hTxt = document.getElementById('rp-more-txt');
+              var hBtn = document.getElementById('rp-more-btn');
+              if (hTxt) hTxt.textContent = hooksCount ? 'Rerun Sales Hooks' : 'GET SALES HOOKS!';
+              if (hBtn) { hBtn.disabled = false; hBtn.classList.remove('deep-search-pulsing'); hBtn.style.opacity = '1'; }
+              // Unlock IV tile if still pending
+              var ivCardS = document.getElementById('card-iv');
+              if (ivCardS) ivCardS.classList.remove('iv-pending-lock');
+              if (!_pipelineSettled) {
+                _pipelineSettled = true;
+                _onFetchSettled();
+              }
+              try { _autoSaveResearch(); } catch(e) {}
+            })();
           }
         );
       },
@@ -13577,13 +13570,13 @@
                 verifiedFoundedYear: String(v.verifiedFoundedYear || '').replace(/\D/g,'').slice(0,4),
                 sourceQuote:         String(v.sourceQuote || '').trim()
               };
-              // Trust the website over the rep's typed company name.
-              // Only update the visible form field if the rep didn't type one — don't
-              // overwrite a rep's deliberate input — but always use verifiedName for
-              // anchoring downstream prompts.
+              // Trust the website over the rep's typed company name (per explicit
+              // user instruction in design discussion). Always sync the form field
+              // to verifiedName so a re-search of a record saved with a hallucinated
+              // name corrects the visible label, not just the underlying data.
               if (_groundTruth.verifiedName.length > 2) {
                 var fc = document.getElementById('f-company');
-                if (fc && !fc.value.trim()) fc.value = _groundTruth.verifiedName;
+                if (fc) fc.value = _groundTruth.verifiedName;
                 company = _groundTruth.verifiedName;
               }
               // Build the anchor block prepended to P1 and P2 prompts. The model is
@@ -13600,6 +13593,11 @@
               ].filter(Boolean).join('\n');
               p1 = anchor + '\n' + p1;
               p2 = anchor + '\n' + p2;
+              // Persist ground truth onto researchData so on-demand functions
+              // (generateCompanyIntel, etc.) can use the same anchor when they
+              // fire later. Without this, those functions would lose the
+              // hallucination-prevention layer once the main pipeline ends.
+              _researchData.groundTruth = _groundTruth;
             }
           }
         } catch(e) { _logError('phase-0-verify', e); }
@@ -14065,7 +14063,7 @@
     };
     if (hasAI) {
       rec.aiResearch = 'YES';
-      rec.researchData = (function(){ try { var rd = _researchData; return JSON.stringify({ companyName:rd.companyName, domain:rd.domain, employees:rd.employees, industry:rd.industry, blurb:rd.blurb, revenue:rd.revenue, foundedYear:rd.foundedYear, companyPhone:rd.companyPhone||'', socialMedia:rd.socialMedia, recentNews:rd.recentNews, eventsSite:rd.eventsSite, eventsWeb:rd.eventsWeb, observances:rd.observances, companyLinkedIn:rd.companyLinkedIn, contactLinkedIn:rd.contactLinkedIn, contactPerson:rd.contactPerson, decisionMakers:rd.decisionMakers, salesHooks:rd.salesHooks, keyPeople:rd.keyPeople||[], deepSearchLog:rd.deepSearchLog||[], searchCostUSD:rd.searchCostUSD, searchDuration:rd.searchDuration, tradeShows:rd.tradeShows||[], competitors:rd.competitors||[], attackPlan:rd.attackPlan||'', attackPlans:rd.attackPlans||{}, attackPlanActive:rd.attackPlanActive||'', companyIntel:rd.companyIntel||'', companyTalkingPoints:rd.companyTalkingPoints||[] }); } catch(e){ return ''; } })();
+      rec.researchData = (function(){ try { var rd = _researchData; return JSON.stringify({ companyName:rd.companyName, domain:rd.domain, employees:rd.employees, industry:rd.industry, blurb:rd.blurb, revenue:rd.revenue, foundedYear:rd.foundedYear, companyPhone:rd.companyPhone||'', socialMedia:rd.socialMedia, recentNews:rd.recentNews, eventsSite:rd.eventsSite, eventsWeb:rd.eventsWeb, observances:rd.observances, companyLinkedIn:rd.companyLinkedIn, contactLinkedIn:rd.contactLinkedIn, contactPerson:rd.contactPerson, decisionMakers:rd.decisionMakers, salesHooks:rd.salesHooks, keyPeople:rd.keyPeople||[], deepSearchLog:rd.deepSearchLog||[], searchCostUSD:rd.searchCostUSD, searchDuration:rd.searchDuration, tradeShows:rd.tradeShows||[], competitors:rd.competitors||[], attackPlan:rd.attackPlan||'', attackPlans:rd.attackPlans||{}, attackPlanActive:rd.attackPlanActive||'', companyIntel:rd.companyIntel||'', companyTalkingPoints:rd.companyTalkingPoints||[], groundTruth:rd.groundTruth||null }); } catch(e){ return ''; } })();
       rec.researchEvents = (function(){ try { return JSON.stringify({ events:(_researchData.eventsSite||[]).concat(_researchData.eventsWeb||[]), observances:_researchData.observances||[], tradeShows:_researchData.tradeShows||[] }); } catch(e){ return ''; } })();
       rec.researchNotes = typeof buildResearchBlock === 'function' ? buildResearchBlock() : '';
       rec.aiEmailHtml = (function(){ try { var el = document.getElementById('rp-email-preview-html'); return el ? (el._fullEmailDoc || el.innerHTML) : ''; } catch(e){ return ''; } })();
@@ -14108,6 +14106,9 @@
     'salesHooks', 'competitors',
     'companyIntel', 'companyTalkingPoints',
     'attackPlan', 'attackPlans', 'attackPlanActive',
+    // Phase 0 verification output — kept so on-demand functions (CI, etc.)
+    // can use the same anchor block after the main pipeline ends
+    'groundTruth',
     // Cost tracking
     'searchCostUSD', 'searchDuration'
   ];
@@ -14130,6 +14131,18 @@
             }
             arc.researchData = JSON.stringify(rd);
           } catch(e) { /* if parse fails, skip the merge but still try to persist */ }
+          // Sync top-level archive fields to mirror the live researchData. The
+          // Recent list and popout header read top-level fields (arc.company,
+          // arc.website, etc.) — without this sync, a Phase 0 verification that
+          // corrected the company name in researchData would leave the wrong
+          // name on the surface (e.g. record kept showing "National Association
+          // of Pipe Coating Applicators" even after Phase 0 corrected it to
+          // "National Asian Pacific Center on Aging" inside the JSON).
+          // Only sync when the live data has a meaningful value — don't blank
+          // out an existing top-level field on incomplete research data.
+          if (_researchData.companyName && _researchData.companyName.length > 2) arc.company = _researchData.companyName;
+          if (_researchData.domain) arc.website = _researchData.domain;
+          if (_researchData.companyPhone) arc.phone = _researchData.companyPhone;
           gsPost({ action: 'updateRecord', record: arc }, { fireAndForget: true });
         }
       } else if (_savedRecordId && _savedRecordId !== 'pending') {
@@ -17602,29 +17615,19 @@
     el._fullEmailDoc = emailDoc;
   }
 
-  // Compute Deep Search block state from log + TTL.
-  // Returns { blocked: bool, daysUntilLift: number, consecutiveZeros: number }.
+  // Compute Deep Search block state from log + 30-day rate limit.
+  // Returns { blocked: bool, daysUntilLift: number, lastAttemptDays: number }.
   function _deepSearchBlockState() {
     var log = (_researchData && _researchData.deepSearchLog) || [];
     var nowMs = Date.now();
     var BLOCK_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-    var consecutiveZeros = 0;
-    var oldestZeroTimestamp = null;
-    for (var i = log.length - 1; i >= 0; i--) {
-      var entry = log[i];
-      if (!entry.returnedZero) break;
-      var entryTs = entry.timestamp || 0;
-      if (nowMs - entryTs > BLOCK_TTL_MS) break;
-      consecutiveZeros++;
-      oldestZeroTimestamp = entryTs;
-    }
-    var blocked = consecutiveZeros >= 2;
-    var daysUntilLift = 0;
-    if (blocked && oldestZeroTimestamp) {
-      var ageDays = Math.floor((nowMs - oldestZeroTimestamp) / 86400000);
-      daysUntilLift = Math.max(0, 30 - ageDays);
-    }
-    return { blocked: blocked, daysUntilLift: daysUntilLift, consecutiveZeros: consecutiveZeros };
+    var lastAttempt = log.length ? log[log.length - 1] : null;
+    if (!lastAttempt || !lastAttempt.timestamp) return { blocked: false, daysUntilLift: 0, lastAttemptDays: null };
+    var ageMs = nowMs - lastAttempt.timestamp;
+    if (ageMs >= BLOCK_TTL_MS) return { blocked: false, daysUntilLift: 0, lastAttemptDays: Math.floor(ageMs / 86400000) };
+    var ageDays = Math.floor(ageMs / 86400000);
+    var daysUntilLift = Math.max(1, 30 - ageDays);
+    return { blocked: true, daysUntilLift: daysUntilLift, lastAttemptDays: ageDays };
   }
 
   // Update the Deep Search button visual state to reflect block status.
@@ -17637,7 +17640,7 @@
       btn.disabled = true;
       btn.style.opacity = '0.5';
       btn.style.cursor = 'not-allowed';
-      btn.title = 'Blocked: ' + state.consecutiveZeros + ' recent attempts returned no new people. Lifts in ' + state.daysUntilLift + ' day' + (state.daysUntilLift === 1 ? '' : 's') + '.';
+      btn.title = 'Blocked: Deep Search already run for this record within the past 30 days. Available again in ' + state.daysUntilLift + ' day' + (state.daysUntilLift === 1 ? '' : 's') + '.';
       btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Locked · ' + state.daysUntilLift + 'd';
     } else {
       btn.disabled = false;
@@ -17681,43 +17684,24 @@
     var costEl = document.getElementById('deep-people-cost');
     if (!btn) return;
 
-    // ── Pre-check: spending guardrails ────────────────────────
-    // Spending more money on Deep Search only makes sense when there's reasonable
-    // chance of finding NEW people. Block based on attempt history with TTL so
-    // the world has time to change (new hires, role changes, new LinkedIn profiles).
+    // ── Pre-check: 30-day rate limit per record ───────────────
+    // Deep Search is expensive (~$0.03 per attempt) and the world doesn't
+    // change much in 30 days for most companies. Hard cap at one attempt per
+    // record per 30 days regardless of result. Reps wanting fresher data can
+    // wait or duplicate the record.
     var log = (_researchData.deepSearchLog || []);
     var attemptCount = log.length;
     var nowMs = Date.now();
     var BLOCK_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-    // Count consecutive zero-result attempts walking backward from the most recent.
-    // Stops at: any non-zero result, or any attempt older than 30 days (TTL elapsed).
-    var consecutiveZeros = 0;
-    var oldestZeroTimestamp = null;
-    for (var i = log.length - 1; i >= 0; i--) {
-      var entry = log[i];
-      if (!entry.returnedZero) break;
-      var entryTs = entry.timestamp || 0;
-      if (nowMs - entryTs > BLOCK_TTL_MS) break; // TTL elapsed — stop counting
-      consecutiveZeros++;
-      oldestZeroTimestamp = entryTs;
-    }
-    // Hard block after 2 consecutive zero-result searches within the TTL window
-    if (consecutiveZeros >= 2) {
-      var ageDays = oldestZeroTimestamp ? Math.floor((nowMs - oldestZeroTimestamp) / 86400000) : 0;
-      var daysUntilLift = Math.max(0, 30 - ageDays);
+    var lastAttempt = log.length ? log[log.length - 1] : null;
+    if (lastAttempt && lastAttempt.timestamp && (nowMs - lastAttempt.timestamp) < BLOCK_TTL_MS) {
+      var ageDays = Math.floor((nowMs - lastAttempt.timestamp) / 86400000);
+      var daysUntilLift = Math.max(1, 30 - ageDays);
       alert('Deep Search blocked for this record.\n\n' +
-        consecutiveZeros + ' recent attempts returned no new people. To prevent wasted API spend, ' +
-        'further searches are blocked until ' + daysUntilLift + ' day' + (daysUntilLift === 1 ? '' : 's') + ' from now.\n\n' +
-        'Try searching LinkedIn manually for decision makers at this company.');
+        'Already run once within the past 30 days. To control API spend, Deep Search is limited to one attempt per record per 30 days.\n\n' +
+        'Available again in ' + daysUntilLift + ' day' + (daysUntilLift === 1 ? '' : 's') + '.\n\n' +
+        'In the meantime, try searching LinkedIn manually for decision makers at this company.');
       return;
-    }
-    // Soft warning when the previous attempt (within TTL) found 0 new people
-    if (consecutiveZeros === 1) {
-      if (!confirm('Last Deep Search returned 0 new people for this record.\n\n' +
-          'After 1 more zero-result attempt, Deep Search will be blocked for 30 days on this record.\n\n' +
-          'Proceed anyway? (Will spend ~$0.03)')) {
-        return;
-      }
     }
     // For very small companies, warn that comprehensive coverage is likely already in place
     var empCount = _parseEmployeeCount(_researchData.employees);
@@ -18504,13 +18488,35 @@
       rd.domain ? 'Website: ' + rd.domain : ''
     ].filter(Boolean).join('\n');
 
+    // If Phase 0 verification produced a ground truth anchor during the main
+    // pipeline run, prepend it here so CI can't drift to a different entity
+    // that shares the same name. Stored on _researchData by runAIResearch.
+    var gt = rd.groundTruth || null;
+    var ciAnchor = '';
+    if (gt && gt.verifiedName) {
+      ciAnchor = [
+        'GROUND TRUTH FROM ' + (rd.domain || '') + ':',
+        'Entity self-identifies as: ' + gt.verifiedName + (gt.verifiedTagline ? ' — ' + gt.verifiedTagline : ''),
+        gt.verifiedFocus ? 'What they do: ' + gt.verifiedFocus : '',
+        gt.sourceQuote ? 'Source quote from homepage: "' + gt.sourceQuote + '"' : '',
+        'Your brief must describe THIS entity. Any content inconsistent with the self-description above is wrong, even if you have prior knowledge of an organization with a similar name.',
+        ''
+      ].filter(Boolean).join('\n');
+    }
+
     var prompt = [
       'You are a sales intelligence researcher. Generate a company background brief for a sales rep who needs to sound knowledgeable when talking to a founder, CEO, or someone passionate about this company.',
       '',
+      ciAnchor,
       ctx,
       '',
+      'Hard rules:',
+      '- Every section must be consistent with the website at ' + (rd.domain || '') + '.',
+      '- If you cannot find specific verifiable information about this exact organization at this exact website, return empty strings for those fields. Do NOT fabricate founder names, milestones, or culture details to fill space.',
+      '- Better to return empty fields than content that contradicts the website.',
+      '',
       'Return ONLY valid JSON with this structure:',
-      '{"companyIntel":{"origin":"How/why founded, key founder names, 2-3 sentences","mission":"What drives them, stated purpose, 2-3 sentences","growth":"Key milestones and expansions, 2-3 sentences","culture":"Internal culture, community involvement, causes, 2-3 sentences","edge":"What differentiates them from competitors, 2-3 sentences","talkingPoints":["Specific thing to say that impresses a founder","Another specific insider fact","Third talking point"]}}',
+      '{"companyIntel":{"origin":"How/why founded, key founder names if verifiably known, 2-3 sentences or empty","mission":"What drives them, stated purpose, 2-3 sentences or empty","growth":"Key milestones and expansions, 2-3 sentences or empty","culture":"Internal culture, community involvement, causes, 2-3 sentences or empty","edge":"What differentiates them from competitors, 2-3 sentences or empty","talkingPoints":["Specific thing to say that impresses a founder","Another specific insider fact","Third talking point"]}}',
       'Be specific, not generic. Skip sections you cannot verify rather than guessing.'
     ].join('\n');
 
@@ -19562,7 +19568,7 @@
           </div>
           <div>
             <p style="margin:0 0 4px;font-size:13px;font-weight:600;color:var(--text);">Company background brief</p>
-            <p style="margin:0;font-size:12px;color:#717378;max-width:340px;line-height:1.6;">Founding story, mission, culture, and talking points for connecting with founders and passionate employees. Runs automatically during research.</p>
+            <p style="margin:0;font-size:12px;color:#717378;max-width:340px;line-height:1.6;">Founding story, mission, culture, and talking points for connecting with founders and passionate employees. Click below to generate.</p>
           </div>
           <button id="rp-companyintel-btn" onclick="generateCompanyIntel()" style="margin-top:6px;height:34px;padding:0 20px;border-radius:8px;border:1px solid rgba(96,165,250,0.5);background:rgba(96,165,250,0.15);color:#60a5fa;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:0.05em;display:inline-flex;align-items:center;gap:6px;">GENERATE INTEL</button>
         </div>
