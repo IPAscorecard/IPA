@@ -4202,7 +4202,7 @@
           </div>
         </div>
         <div style="min-height:28px;display:flex;flex-direction:column;justify-content:flex-end;gap:2px;margin-top:2px;margin-bottom:0;">
-          <div class="asst-todo-note" id="todo-note" style="margin-bottom:0;color:var(--text-muted);background:rgba(255,255,255,0.03);border-color:rgba(255,255,255,0.08);display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.4;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>TO DO:</span></div>
+          <div class="asst-todo-note" id="todo-note" style="margin-bottom:0;color:var(--text-muted);background:rgba(255,255,255,0.03);border-color:rgba(255,255,255,0.08);display:none;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.4;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>TO DO:</span></div>
         </div>
         <!-- Bottom row: HOT + Override buttons -->
         <div class="breakdown" id="assign-override" style="display:flex;flex-direction:column;gap:4px;opacity:0.3;pointer-events:none;">
@@ -6855,6 +6855,14 @@
     if (overrideEl) { overrideEl.style.opacity = ivReady ? '' : '0.3'; overrideEl.style.pointerEvents = ivReady ? '' : 'none'; }
     if (allScored) {
       applyAssignment();
+    } else {
+      // Hide the TO DO note when not fully scored. Research-only records (IV only)
+      // and partially-scored records would otherwise show an empty "TO DO:"
+      // placeholder which looks like a stuck or pending action item. The note only
+      // has meaningful content when applyAssignment runs (which itself requires
+      // all three scores).
+      var todoNote = document.getElementById('todo-note');
+      if (todoNote) todoNote.style.display = 'none';
     }
 
     checkCopyReady();
