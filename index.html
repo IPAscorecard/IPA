@@ -12616,6 +12616,23 @@
     var _bypassCacheRun = !!window._bypassResearchCache;
     window._bypassResearchCache = false;
 
+    // Derivative enrichment is stale when P1/P2 re-run. Auto-CI has a hard
+    // skip-if-populated guard that would otherwise preserve old wrong content
+    // (this caused the NAPCA pipe-coatings CI to persist through a re-search
+    // even after Phase 0 verification corrected the company name). Clear all
+    // derivative fields so they regenerate against the freshly-sourced data.
+    // Core P1/P2 fields (companyName, blurb, decisionMakers, events, observances,
+    // tradeShows, news, address, phone) are NOT cleared here — they get
+    // overwritten naturally by the new pipeline run, and clearing them would
+    // create an empty-state flicker during the ~30s the pipeline takes.
+    _researchData.companyIntel = '';
+    _researchData.companyTalkingPoints = [];
+    _researchData.competitors = [];
+    _researchData.attackPlan = '';
+    _researchData.attackPlans = {};
+    _researchData.attackPlanActive = '';
+    _researchData.salesHooks = [];
+
     var btn = document.getElementById('lightbulb-btn');
     if (btn) { btn.style.borderColor = ''; btn.style.background = ''; btn.style.color = ''; btn.style.filter = ''; }
     setLightbulbLoading(true, 1);
