@@ -3599,13 +3599,14 @@
       </div>
       <div class="usage-stat">
         <div class="usage-stat-val" id="usage-stat-calls">0</div>
-        <div class="usage-stat-lbl">Total Lookups</div>
+        <div class="usage-stat-lbl">Total API Calls</div>
       </div>
       <div class="usage-stat">
         <div class="usage-stat-val" id="usage-stat-tokens">0</div>
         <div class="usage-stat-lbl">Total Tokens Used</div>
       </div>
     </div>
+    <div style="font-size:10px;color:var(--text-dim, #717378);padding:0 16px 8px;line-height:1.5;font-style:italic;">Note: each customer research run generates roughly 6 to 8 API calls (Phase 1 search, Phase 2 search, Company Intel, Sales Hooks, Trade Shows, Competitors, etc.). Customer-level lookup count coming in a future update.</div>
     <div class="usage-table-wrap">
       <table class="usage-table" id="usage-table">
         <thead>
@@ -4724,8 +4725,12 @@
       .replace(/"/g,  '&quot;')
       .replace(/</g,  '&lt;')
       .replace(/>/g,  '&gt;');
-    var titleAttr = rawLabel.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
-    return '<button type="button" class="copy-icon-btn" title="' + titleAttr + '" ' +
+    // Hover tooltip is action-tense ("Click to copy") because the user can already
+    // see what's next to the icon (phone number, email). The PAST-tense label
+    // ("Phone copied", "Email copied") is reserved for the toast that fires AFTER
+    // the click. Showing the past-tense tooltip on hover before any action looked
+    // like the icon was claiming the copy already happened.
+    return '<button type="button" class="copy-icon-btn" title="Copy to clipboard" ' +
            'onclick="event.preventDefault();event.stopPropagation();_copyToClipboardWithToast(\'' + safeVal + '\',\'' + safeLabel + '\');return false;">' +
            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
              '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>' +
@@ -6173,7 +6178,7 @@
     '<div class="stats">' +
     '<div class="stat"><div class="stat-val">$' + mtdCost.toFixed(4) + '</div><div class="stat-lbl">Month-to-Date</div></div>' +
     '<div class="stat"><div class="stat-val">$' + totalCost.toFixed(4) + '</div><div class="stat-lbl">All-Time Cost</div></div>' +
-    '<div class="stat"><div class="stat-val">' + _usageRows.length + '</div><div class="stat-lbl">Total Lookups</div></div>' +
+    '<div class="stat"><div class="stat-val">' + _usageRows.length + '</div><div class="stat-lbl">Total API Calls</div></div>' +
     '<div class="stat"><div class="stat-val">' + totalTokens.toLocaleString() + '</div><div class="stat-lbl">Total Tokens</div></div>' +
     '</div>' +
     '<table><thead><tr><th>Date</th><th>Rep</th><th>Company</th><th>Tokens</th><th>Cost</th><th>Running Total</th></tr></thead>' +
@@ -8537,7 +8542,7 @@
     function row(label, val, copyable) {
       if (!val||val==='—') return '';
       var safeVal = String(val).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      var clickable = copyable ? ' onclick="copyArchiveField(\''+safeVal+'\',this)" style="cursor:pointer;" title="Click to copy"' : '';
+      var clickable = copyable ? ' onclick="copyArchiveField(\''+safeVal+'\',this)" style="cursor:pointer;" title="Copy to clipboard"' : '';
       return '<div class="arc-pop-row"'+clickable+'><span class="arc-pop-label">'+label+'</span><span class="arc-pop-val">'+val+(copyable?'<span class="arc-pop-copy">⎘</span>':'')+'</span></div>';
     }
     var html =
