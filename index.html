@@ -12169,7 +12169,7 @@
     } else {
       btn.style.display = 'none';
       btn.dataset.state = '';
-      if (srchBtn) srchBtn.style.display = '';
+      if (srchBtn) { srchBtn.style.display = ''; srchBtn.textContent = 'Search'; }
     }
   }
 
@@ -13078,11 +13078,14 @@
         " Match requires BOTH name AND company/domain alignment."
       );
     }
+    var _curYear  = new Date().getFullYear();
+    var _nextYear = _curYear + 1;
     p1Lines.push(
-      "Use up to 2 searches, prioritized highest-value first: " +
-        "(1 - REQUIRED) 'site:linkedin.com/in " + company + " (\"marketing director\" OR \"VP marketing\" OR \"event manager\" OR \"procurement manager\" OR \"CEO\" OR \"president\" OR \"owner\")' — decision makers. " +
-        "(2 - REQUIRED) '" + searchDomain + " events 2025 2026' — events on their own site → eventsSite. " +
-        "Skip the general '" + company + " upcoming events' search — only run it if both required searches return nothing useful.",
+      "Use exactly 2 searches, both REQUIRED — run BOTH regardless of whether the other finds results: " +
+        "(1) 'site:linkedin.com/in " + company + " (\"marketing director\" OR \"VP marketing\" OR \"event manager\" OR \"procurement manager\" OR \"CEO\" OR \"president\" OR \"owner\")' — decision makers. " +
+        "(2) '" + company + " (events OR gala OR fundraiser OR conference OR tournament OR golf OR auction OR charity) " + _curYear + " " + _nextYear + "' — any upcoming events this company hosts, sponsors, or attends. Look across ALL sources: their own website, Eventbrite, charity sites, press releases, news, sponsor lists, industry publications, social posts.",
+      "Bucket the events you find: if the source URL is on " + searchDomain + " (their own site) → put it in eventsSite. Everything else (third-party sites, news, sponsor pages, Eventbrite, etc.) → put it in eventsWeb. Both arrays may be populated.",
+      "Date filter: only include events dated " + _curYear + " or later. Skip anything that has already passed. If the date is unclear, include it but leave the date field empty.",
       "Rules: Only return URLs that appear verbatim in search results. Never fabricate or construct URLs. Every event needs a 'source' URL where you found it.",
       'Schema: {"companyLinkedIn":"","contactLinkedIn":"","contactPerson":{"found":false,"title":"","linkedin":"","email":"","confidence":"high|medium|low"},"decisionMakers":{"ownerExec":{"name":"","title":"","linkedin":"","email":""},"marketing":{"name":"","title":"","linkedin":"","email":""},"procurement":{"name":"","title":"","linkedin":"","email":""},"eventManager":{"name":"","title":"","linkedin":"","email":""}},"eventsSite":[{"title":"","date":"Mon D YYYY","venue":"","source":"","recurring":false,"notes":""}],"eventsWeb":[{"title":"","date":"Mon D YYYY","venue":"","source":"","recurring":false,"notes":""}]}'
     );
