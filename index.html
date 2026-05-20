@@ -12225,6 +12225,10 @@
                         (rd.decisionMakers.procurement && rd.decisionMakers.procurement.name));
     var hasHooks     = rd.salesHooks && rd.salesHooks.length > 0;
     var hasCoLi      = !!rd.companyLinkedIn;
+    // Address considered complete only if street + zip are both present.
+    // City/state alone is what the AI sometimes returns as a partial guess.
+    var ca           = rd.corporateAddress || {};
+    var hasFullAddr  = !!(ca.street && ca.zip);
 
     // ── Build what-we-know context ────────────────────────────────
     var known = [];
@@ -12244,6 +12248,7 @@
 
     // ── Build what's missing instruction ─────────────────────────
     var missing = [];
+    if (!hasFullAddr) missing.push('the full corporate/HQ ADDRESS (street, suite if any, city, state, ZIP) — open ' + searchDomain + '/contact (or similar) and extract the street and ZIP. ' + (ca.city || ca.state ? 'We already have ' + [ca.city, ca.state].filter(Boolean).join(', ') + ' — fill in the street and ZIP.' : ''));
     if (!hasEvents) missing.push('upcoming events, galas, conferences, or fundraisers this company hosts or attends');
     if (!hasObs)    missing.push('industry observances and awareness months relevant to their industry');
     if (!hasCoLi)   missing.push('the company LinkedIn page URL — search site:linkedin.com/company ' + company);
@@ -12278,18 +12283,22 @@
     var prompt = [
       'You are researching a company for QLP (promotional products). Return ONLY valid JSON, no markdown.',
       'Company: ' + company + ' | Domain: ' + searchDomain + (contactName ? ' | Contact: ' + contactName : '') + ' | Today: ' + todayStr,
-      'WHAT WE ALREADY KNOW (do NOT repeat this data — only add NEW information):',
+      'WHAT WE ALREADY KNOW (do NOT repeat, add NEW information only):',
       known.join('\n'),
-      'WHAT WE NEED YOU TO FIND (use 1-2 searches):',
+      'WHAT WE NEED YOU TO FIND (priority-ordered, up to 3 searches, allocate where they add the most value):',
       missing.map(function(m,i){return (i+1)+'. '+m;}).join('\n'),
+      'Open pages rather than reading just search snippets. This is especially important for addresses (street and ZIP are usually inside the contact page, not in the search preview), decision-maker LinkedIn URLs, and event details.',
+      'URL discipline: only return URLs that appear verbatim in search results. Never fabricate or construct.',
       'Return ONLY new data not already listed above. Return ONLY valid JSON:',
-      '{"companyLinkedIn":"https://linkedin.com/company/... or empty","eventsWeb":[{"title":"","date":"Mon D YYYY","venue":"","source":"","recurring":false,"notes":"QLP promo opportunity","summary":["Type:","Turnout:","Address:","Purpose:","QLP Opportunity:"]}],"observances":[{"title":"","date":"Mon D-D YYYY","notes":"QLP promo opportunity","summary":["Type:Industry observance","Purpose:","QLP Opportunity:"]}],"recentNews":[{"headline":"short","date":"Mon YYYY","sourceUrl":""}],"socialMedia":{"facebook":"","instagram":"","twitter":"","tiktok":"","youtube":"","snapchat":""},"decisionMakers":{"ownerExec":{"name":"","title":"","linkedin":"https://linkedin.com/in/... or empty","email":""},"marketing":{"name":"","title":"","linkedin":"https://linkedin.com/in/... or empty","email":""},"procurement":{"name":"","title":"","linkedin":"https://linkedin.com/in/... or empty","email":""}}}'
+      '{"companyLinkedIn":"https://linkedin.com/company/... or empty","eventsWeb":[{"title":"","date":"Mon D YYYY","venue":"","source":"","recurring":false,"notes":"QLP promo opportunity","summary":["Type:","Turnout:","Address:","Purpose:","QLP Opportunity:"]}],"observances":[{"title":"","date":"Mon D-D YYYY","notes":"QLP promo opportunity","summary":["Type:Industry observance","Purpose:","QLP Opportunity:"]}],"recentNews":[{"headline":"short","date":"Mon YYYY","sourceUrl":""}],"socialMedia":{"facebook":"","instagram":"","twitter":"","tiktok":"","youtube":"","snapchat":""},"corporateAddress":{"street":"","suite":"","city":"","state":"","zip":""},"decisionMakers":{"ownerExec":{"name":"","title":"","linkedin":"https://linkedin.com/in/... or empty","email":""},"marketing":{"name":"","title":"","linkedin":"https://linkedin.com/in/... or empty","email":""},"procurement":{"name":"","title":"","linkedin":"https://linkedin.com/in/... or empty","email":""}}}'
     ].join('\n');
 
     // ── Fire the supplemental search (90s timeout) ───────────────
+    // sonnet:true routes this to Sonnet. Dig is search-heavy and underperforms
+    // on Haiku the same way P1/P2 did before the same fix was applied to them.
     var digController = new AbortController();
     var digTimer = setTimeout(function() { digController.abort(); }, 90000);
-    fetch(GS_URL, { method: 'POST', body: JSON.stringify({ action: 'runResearch', prompt: prompt, rep: window._currentRep || '' }), signal: digController.signal })
+    fetch(GS_URL, { method: 'POST', body: JSON.stringify({ action: 'runResearch', prompt: prompt, rep: window._currentRep || '', sonnet: true }), signal: digController.signal })
     .then(function(r) { return r.text(); })
     .then(function(raw) {
       clearTimeout(digTimer);
@@ -12343,6 +12352,23 @@
               _researchData.socialMedia[p] = url;
             }
           });
+        }
+        // Merge corporate address — only fill empty subfields. Lets the dig
+        // pass top up a partial address from P2 (e.g. city/state only) with
+        // the street/suite/zip without overwriting good data.
+        if (r2.corporateAddress && typeof r2.corporateAddress === 'object') {
+          if (!_researchData.corporateAddress) _researchData.corporateAddress = {};
+          var _addrChanged = false;
+          ['street','suite','city','state','zip'].forEach(function(k) {
+            var v = (r2.corporateAddress[k] || '').toString().trim();
+            if (!v) return;
+            if (k === 'zip') v = v.replace(/\D/g,'').substring(0,5);
+            if (v && !_researchData.corporateAddress[k]) {
+              _researchData.corporateAddress[k] = v;
+              _addrChanged = true;
+            }
+          });
+          if (_addrChanged) { try { applyAiAddress(); } catch(e) {} }
         }
       }
       _researchInProgress = false;
@@ -13069,43 +13095,61 @@
     // ── PHASE 1 — LinkedIn + Events ──────────────────────────────────
     var emailPrefix = (email && email.indexOf('@') !== -1) ? email.split('@')[0] : '';
     var p1Lines = [
-      "Find LinkedIn profiles and events for " + company + " (" + searchDomain + "). QLP sells promotional products. Today: " + todayStr + ". Return only valid JSON."
+      "Find decision makers and upcoming events for " + company + " (" + searchDomain + "). QLP sells promotional products. Today: " + todayStr + ". Return only valid JSON."
     ];
     if (contactName) {
       p1Lines.push(
-        "CONTACT: " + contactName + (email ? " <" + email + ">" : "") + ". Search LinkedIn for this person at " + company + "." +
-        (emailPrefix ? " Try linkedin.com/in/" + emailPrefix + " (email prefix often = slug)." : "") +
+        "The rep is contacting " + contactName + (email ? " <" + email + ">" : "") + " at " + company + ". Find this person's LinkedIn profile." +
+        (emailPrefix ? " Try linkedin.com/in/" + emailPrefix + " (email prefix is often the slug)." : "") +
         " Match requires BOTH name AND company/domain alignment."
       );
     }
     var _curYear  = new Date().getFullYear();
     var _nextYear = _curYear + 1;
     p1Lines.push(
-      "Use exactly 2 searches, both REQUIRED — run BOTH regardless of whether the other finds results: " +
-        "(1) 'site:linkedin.com/in " + company + " (\"marketing director\" OR \"VP marketing\" OR \"event manager\" OR \"procurement manager\" OR \"CEO\" OR \"president\" OR \"owner\")' — decision makers. " +
-        "(2) '" + company + " (events OR gala OR fundraiser OR conference OR tournament OR golf OR auction OR charity) " + _curYear + " " + _nextYear + "' — any upcoming events this company hosts, sponsors, or attends. Look across ALL sources: their own website, Eventbrite, charity sites, press releases, news, sponsor lists, industry publications, social posts.",
-      "Bucket the events you find: if the source URL is on " + searchDomain + " (their own site) → put it in eventsSite. Everything else (third-party sites, news, sponsor pages, Eventbrite, etc.) → put it in eventsWeb. Both arrays may be populated.",
-      "Date filter: only include events dated " + _curYear + " or later. Skip anything that has already passed. If the date is unclear, include it but leave the date field empty.",
-      "Rules: Only return URLs that appear verbatim in search results. Never fabricate or construct URLs. Every event needs a 'source' URL where you found it.",
+      "Search budget: up to 3 web searches. Allocate by priority:",
+      "1. Decision makers. Search 'site:linkedin.com/in " + company + " (\"marketing director\" OR \"VP marketing\" OR \"event manager\" OR \"procurement manager\" OR \"CEO\" OR \"president\" OR \"owner\")'. Copy linkedin.com/in/ URLs verbatim from the results. Aim to fill ownerExec, marketing, procurement, and eventManager slots.",
+      "2. Upcoming events. Search '" + company + " (events OR gala OR fundraiser OR conference OR tournament OR golf OR auction OR charity) " + _curYear + " " + _nextYear + "'. Look across their site, Eventbrite, charity pages, sponsor lists, news, press releases, industry publications, social. Open the most relevant result rather than reading just the snippet. Event dates and venues are usually inside the page, not in the search preview.",
+      "3. Use the third search where it adds the most value. Examples: a name-specific LinkedIn search if a decision maker came back without a URL, 'site:" + searchDomain + " events' if no events surfaced, or a backup name match if the contact wasn't located. Skip the third search if priorities 1 and 2 came back complete.",
+      "Bucketing: if an event's source URL is on " + searchDomain + ", put it in eventsSite. Everything else (third-party sites, news, sponsor pages, Eventbrite, etc.) goes in eventsWeb. Both arrays may be populated.",
+      "Date filter: events dated " + _curYear + " or later only. Skip past events. If the date is unclear, include it but leave the date field empty.",
+      "URL discipline: only return URLs that appear verbatim in search results. Never fabricate or construct. Every event needs a 'source' URL.",
       'Schema: {"companyLinkedIn":"","contactLinkedIn":"","contactPerson":{"found":false,"title":"","linkedin":"","email":"","confidence":"high|medium|low"},"decisionMakers":{"ownerExec":{"name":"","title":"","linkedin":"","email":""},"marketing":{"name":"","title":"","linkedin":"","email":""},"procurement":{"name":"","title":"","linkedin":"","email":""},"eventManager":{"name":"","title":"","linkedin":"","email":""}},"eventsSite":[{"title":"","date":"Mon D YYYY","venue":"","source":"","recurring":false,"notes":""}],"eventsWeb":[{"title":"","date":"Mon D YYYY","venue":"","source":"","recurring":false,"notes":""}]}'
     );
     var p1 = p1Lines.join("\n");
 
-    // ── PHASE 2 — Company details + observances + hooks (Haiku, secondary) ──
+    // ── PHASE 2 — Company details + observances + hooks (Sonnet, secondary) ──
     // Sales Hooks are generated INSIDE this same call rather than a separate
-    // request. P2 already has all the context it needs (employees, revenue,
-    // news, observances, blurb), so adding hooks generation costs only the
-    // extra output tokens (~$0.005) instead of a separate ~$0.022 call.
+    // call. Saves ~$0.02 per record vs the prior architecture.
+    // IV brackets are pulled from _scoringConfig so admin tuning of tier
+    // thresholds stays in sync with what the AI is told. Falls back to the
+    // built-in defaults (50 / 500 employees, $5M / $50M revenue) if config
+    // is missing for any reason.
+    var _ivCfg = (_scoringConfig && _scoringConfig.iv) ? _scoringConfig.iv : { headcount:{tier2:50,tier3:500}, revenue:{tier2:5000000,tier3:50000000} };
+    var _empT2 = _ivCfg.headcount.tier2;
+    var _empT3 = _ivCfg.headcount.tier3;
+    var _revT2 = _ivCfg.revenue.tier2;
+    var _revT3 = _ivCfg.revenue.tier3;
+    function _fmtRevForPrompt(n) {
+      if (n >= 1000000) return '$' + (n/1000000) + 'M';
+      if (n >= 1000)    return '$' + (n/1000)    + 'K';
+      return '$' + n;
+    }
+    var _ivBrackets = 'Small (under ' + _empT2 + ' employees or under ' + _fmtRevForPrompt(_revT2) + ' revenue), ' +
+                      'Regional (' + _empT2 + '-' + (_empT3 - 1) + ' employees or ' + _fmtRevForPrompt(_revT2) + ' to ' + _fmtRevForPrompt(_revT3) + '), ' +
+                      'National (' + _empT3 + '+ employees or ' + _fmtRevForPrompt(_revT3) + '+)';
     var p2 = [
-      "Research " + company + " (" + searchDomain + ") for QLP (promotional products). Today: " + todayStr + ". Return only valid JSON.",
-      "Use up to 2 searches, both required: " +
-        "(1) '" + searchDomain + " contact' — extract MAIN PHONE (switchboard), full corporate ADDRESS from contact page or footer, and any social media icon URLs (Facebook, Instagram, X/Twitter, TikTok, YouTube, Snapchat) found in the page footer. " +
-        "(2) '" + searchDomain + " about' OR '" + company + " company size revenue' — extract employees (number), revenue, founded year, industry, 1-sentence blurb, and recent news. Also note industry awareness months / observances if visible.",
-      "Address and phone are HIGH PRIORITY — they're typically on the contact page or website footer. Partial address OK. Don't guess phone numbers.",
-      "Social media URLs: capture official Facebook, Instagram, X/Twitter, TikTok, YouTube, and Snapchat URLs from the footer or social-icon links. Only return URLs that appear verbatim on the company's pages. Leave empty if not found — do NOT guess or construct.",
+      "Build a company profile and sales hooks for " + company + " (" + searchDomain + ") for QLP (promotional products). Today: " + todayStr + ". Return only valid JSON.",
+      "Search budget: up to 3 web searches. Allocate by priority:",
+      "1. Contact page. Search '" + searchDomain + " contact' and open the contact page itself rather than reading the snippet. Extract MAIN PHONE (switchboard), FULL corporate ADDRESS (street, suite if shown, city, state, ZIP), and social media icon URLs (Facebook, Instagram, X/Twitter, TikTok, YouTube, Snapchat) from the footer. Partial city/state-only addresses are not acceptable when the full address is published on their site. If they have multiple offices, return the corporate or HQ address.",
+      "2. About or size page. Search '" + searchDomain + " about' or '" + company + " company size revenue'. Extract employees (headcount), revenue, founded year, industry, and a 1-sentence blurb describing what they do.",
+      "Size scoring context: the company's IV tier uses the HIGHER of employees vs revenue, so either field alone is sufficient when it clearly fits a tier. Tiers: " + _ivBrackets + ". If headcount clearly places them in a tier, don't burn extra effort hunting revenue (or vice versa). Industry and blurb also matter: a clean industry label and a substantive 1-sentence blurb feed a downstream classifier when neither headcount nor revenue is available. Always return values verbatim from sources, never infer or estimate numbers to match a tier.",
+      "3. Recent news. Search '" + company + " news " + _curYear + "' or '" + company + " press release' for 2-5 recent headlines with dates and source URLs. Also note industry awareness months or observances if surfaced. Skip the third search if priorities 1 and 2 came back thin and you'd rather spend it broadening one of them.",
+      "Sales hooks: after the searches are done, generate 3-5 sales hooks. No additional search needed. Synthesize from what you found above. Each hook is a specific factual finding paired with a concrete promotional product pitch. Focus on milestones (anniversaries, growth), recent news, hiring surges, expansions, brand identity angles, awards, industry trends they could capitalize on. Skip events, observances, and trade shows (tracked separately). Include 'date' only if the finding is time-sensitive. Empty salesHooks array is fine if no useful angles emerge.",
       "Phone format: digits with separators (e.g. (555) 123-4567 or +1 555 123 4567).",
-      "Employees: total full-time headcount as a plain integer (e.g. 5500 or 50000). Use commas if it helps readability (e.g. 5,500). Do NOT concatenate multiple numbers. If the source says '5,000 to 7,000', return 5000. Maximum plausible value is 2,500,000 (Walmart-scale). If unsure or a figure looks impossibly large, return empty string.",
-      "SALES HOOKS — also generate 3 to 5 sales hooks for QLP (promotional products distributor) based on the company facts above. Each hook = a specific factual finding + a concrete promo product pitch tied to it. Focus on: company milestones (anniversaries, growth), recent news/PR, hiring surges, expansions (new locations, markets), brand identity angles, awards/recognition, industry trends they should capitalize on. Do NOT generate hooks about events, conferences, trade shows, or observances — those are tracked separately. The 'finding' should be a specific fact the rep can mention on the call. The 'pitch' should be a concrete product suggestion. Include a 'date' field ONLY if the finding is time-sensitive (anniversary, fiscal quarter end). If no useful hooks, return an empty salesHooks array.",
+      "Employees: plain integer headcount (e.g. 5500 or 50000), commas OK for readability. Do not concatenate multiple numbers. If the source says '5,000 to 7,000', return 5000. Maximum plausible value is 2,500,000 (Walmart-scale). If unsure or a figure looks impossibly large, return empty.",
+      "Social media URLs: only verbatim URLs from the company's own pages. Do not guess or construct.",
+      "URL discipline: only return URLs that appear verbatim in search results.",
       'Schema: {"companyName":"","employees":"","industry":"Healthcare|Education|Finance|Nonprofit|Retail|Technology|Manufacturing|Government|Legal|Real Estate or empty","blurb":"","revenue":"e.g. $2M","foundedYear":"YYYY","companyPhone":"","socialMedia":{"facebook":"","instagram":"","twitter":"","tiktok":"","youtube":"","snapchat":""},"recentNews":[{"headline":"","date":"Mon YYYY","sourceUrl":""}],"observances":[{"title":"","date":"Mon D YYYY","notes":""}],"corporateAddress":{"street":"","suite":"","city":"","state":"","zip":""},"salesHooks":[{"type":"milestone|expansion|hiring|news|brand|award|industry","finding":"one sentence specific fact","pitch":"one sentence concrete swag/promo product angle","date":"Mon D YYYY or empty","source":"URL or empty"}]}'
     ].join("\n");
 
@@ -13162,9 +13206,13 @@
 
     // ── Fire Phase 1 — LinkedIn + Events (Sonnet) ───────────────
     // Wrapped in _fireP1Pipeline so we can chain it after Phase 0 verification.
+    // sonnet:true is REQUIRED — without it, runResearch_ falls through to Haiku
+    // (parallelModel), which is too "efficient" with the search tool and tends
+    // to skip the second of two required searches. That left eventsSite/eventsWeb
+    // empty for most records.
     function _fireP1Pipeline() {
     _runPhase(0,
-      { action: 'runResearch', prompt: p1, rep: window._currentRep || '', bypassCache: _bypassCacheRun },
+      { action: 'runResearch', prompt: p1, rep: window._currentRep || '', sonnet: true, bypassCache: _bypassCacheRun },
       function(result, elapsed) {
         if (!result) { _abortPipeline(); return false; }
 
@@ -13287,7 +13335,7 @@
         })();
 
         _runPhase(2,
-          { action: 'runResearch', prompt: p2, rep: window._currentRep || '', bypassCache: _bypassCacheRun },
+          { action: 'runResearch', prompt: p2, rep: window._currentRep || '', sonnet: true, bypassCache: _bypassCacheRun },
           function(result, elapsed) {
             var got = false;
             if (result) {
@@ -13394,14 +13442,16 @@
                 var safeLegal = legalName.replace(/["\\\n\r]/g, ' ').trim();
                 if (!safeLegal) return;
                 var disambigPrompt = [
-                  'Find LinkedIn URLs for ' + safeLegal + ' (' + searchDomain + '). Today: ' + todayStr + '. Return only valid JSON.',
-                  'Use 1-2 searches: (1) site:linkedin.com/company "' + safeLegal + '" — find official company LinkedIn page.' +
-                    (hasNoDM ? ' (2) site:linkedin.com/in "' + safeLegal + '" ("marketing director" OR "VP marketing" OR "event manager" OR "procurement" OR "CEO" OR "president") — find decision makers.' : ''),
-                  'Rules: Only return URLs that appear verbatim in search results. Never fabricate.',
+                  'Find LinkedIn URLs for ' + safeLegal + ' (' + searchDomain + '). The original name we searched did not match this organization. ' + safeLegal + ' is the verified legal name from their website. Today: ' + todayStr + '. Return only valid JSON.',
+                  'Search budget: up to 3 searches. Priorities:',
+                  '1. Company LinkedIn. site:linkedin.com/company "' + safeLegal + '" to find the official company page URL.' +
+                    (hasNoDM ? ' 2. Decision makers. site:linkedin.com/in "' + safeLegal + '" ("marketing director" OR "VP marketing" OR "event manager" OR "procurement" OR "CEO" OR "president"). Copy linkedin.com/in/ URLs verbatim from results.' : ''),
+                  '3. Third search is flexible. Use a name variant or specific role search if priorities 1' + (hasNoDM ? ' or 2' : '') + ' came back thin. Skip if priorities came back complete.',
+                  'URL discipline: only return URLs that appear verbatim in search results. Never fabricate.',
                   'Schema: {"companyLinkedIn":"","decisionMakers":{"ownerExec":{"name":"","title":"","linkedin":"","email":""},"marketing":{"name":"","title":"","linkedin":"","email":""},"procurement":{"name":"","title":"","linkedin":"","email":""},"eventManager":{"name":"","title":"","linkedin":"","email":""}}}'
                 ].join('\n');
                 var retryToken = _thisToken;
-                fetch(GS_URL, { method: 'POST', body: JSON.stringify({ action: 'runResearch', prompt: disambigPrompt, rep: window._currentRep || '', bypassCache: _bypassCacheRun }) })
+                fetch(GS_URL, { method: 'POST', body: JSON.stringify({ action: 'runResearch', prompt: disambigPrompt, rep: window._currentRep || '', sonnet: true, bypassCache: _bypassCacheRun }) })
                   .then(function(r) { return r.text(); })
                   .then(function(raw) {
                     if (_searchToken !== retryToken || _pipelineAborted) return;
