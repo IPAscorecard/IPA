@@ -8922,15 +8922,7 @@
       rowsHtml = '<div style="font-size:11px;color:#717378;text-align:center;display:flex;align-items:center;justify-content:center;flex:1;">No entries yet.</div>';
     } else {
       pageSlice.forEach(function(r, i) {
-        // Show as Research Only ("1/3 RO") only when ONLY the IV slot is
-        // scored. If the rep has added PV or AV (even partial), show the
-        // composite score regardless of the status field. This handles the
-        // transitional state where a record was auto-saved as RO with IV
-        // only, then the rep added PV or AV via Edit → Resubmit; the status
-        // string stays "research" until all three are scored, but Recent
-        // should reflect the new composite immediately.
-        var hasOnlyIv = (r.iv > 0 && !r.pv && !r.av);
-        var isRO = (r.status === 'research' || r.status === 'incomplete') && hasOnlyIv;
+        var isRO = r.status === 'research' || (r.status === 'incomplete' && r.iv > 0 && !r.pv && !r.av);
         var col = isRO ? '#b0b2b6' : pillColor(r.pillClass || 'asst');
         var scoreLabel = isRO ? ((r.iv || '?') + '/3') : ((r.score || '?') + '/9');
         var bg = i % 2 === 0 ? 'background:rgba(255,255,255,0.02);' : '';
@@ -9160,21 +9152,9 @@
     });
 
     _recordsCache[idx] = updated;
-    // Sync _archiveCache too — Recent panel reads from _archiveCache, not
-    // _recordsCache, so without this sync the Recent list keeps showing the
-    // pre-edit values until a page reload.
-    if (_archiveCache) {
-      for (var ai = 0; ai < _archiveCache.length; ai++) {
-        if (String(_archiveCache[ai].id) === String(_editingRecordId)) {
-          Object.assign(_archiveCache[ai], updated);
-          break;
-        }
-      }
-    }
     updateTabCounts();
     renderRecords(_currentTab);
     renderLeaderboard();
-    try { _renderActivityCard(); } catch(e) {}
     closeEditRecordModal();
 
     // Sync to Google Sheets
@@ -9747,7 +9727,6 @@
       _researchData.contactLinkedIn= (rd.contactLinkedIn && rd.contactLinkedIn.match(/^https?:\/\/.*linkedin\.com/)) ? rd.contactLinkedIn : '';
       _researchData.contactPerson  = rd.contactPerson  || null;
       _researchData.decisionMakers = rd.decisionMakers || null;
-      _researchData.footInTheDoor  = rd.footInTheDoor  || null;
       _researchData.salesHooks     = Array.isArray(rd.salesHooks) ? rd.salesHooks : [];
       _researchData.keyPeople      = Array.isArray(rd.keyPeople) ? rd.keyPeople : [];
       _researchData.deepSearchLog  = Array.isArray(rd.deepSearchLog) ? rd.deepSearchLog : [];
@@ -9852,7 +9831,6 @@
       _researchData.contactLinkedIn= rd.contactLinkedIn || '';
       _researchData.contactPerson  = rd.contactPerson  || null;
       _researchData.decisionMakers = rd.decisionMakers  || null;
-      _researchData.footInTheDoor  = rd.footInTheDoor   || null;
       _researchData.keyPeople      = Array.isArray(rd.keyPeople) ? rd.keyPeople : [];
       _researchData.deepSearchLog  = Array.isArray(rd.deepSearchLog) ? rd.deepSearchLog : [];
       _researchData.socialMedia    = (rd.socialMedia && typeof rd.socialMedia === 'object') ? rd.socialMedia : {};
@@ -9916,7 +9894,6 @@
       _researchData.contactLinkedIn= _rdRestore.contactLinkedIn || '';
       _researchData.contactPerson  = _rdRestore.contactPerson  || null;
       _researchData.decisionMakers = _rdRestore.decisionMakers || null;
-      _researchData.footInTheDoor  = _rdRestore.footInTheDoor  || null;
       _researchData.salesHooks     = Array.isArray(_rdRestore.salesHooks)   ? _rdRestore.salesHooks   : [];
       _researchData.keyPeople      = Array.isArray(_rdRestore.keyPeople)    ? _rdRestore.keyPeople    : [];
       _researchData.deepSearchLog  = Array.isArray(_rdRestore.deepSearchLog) ? _rdRestore.deepSearchLog : [];
@@ -11514,7 +11491,6 @@
       companyLinkedIn:'', contactLinkedIn:'', revenue:'', recentNews:[], socialMedia:{},
       corporateAddress:null, companyPhone:'',
       decisionMakers:null, contactPerson:null, keyPeople:[],
-      footInTheDoor:null,
       salesHooks:[], searchCostUSD:0, searchDuration:null, tradeShows:[],
       competitors:[], attackPlan:'', attackPlans:{}, attackPlanActive:'',
       companyIntel:'', companyTalkingPoints:[],
@@ -11673,35 +11649,6 @@
   var _searchDuration     = null;
   var _activeFetchCount   = 0;
   var _pipelineSettled    = false;
-  // Maximum dig passes per record, tier-aware. Computed at the moment dig is
-  // considered firing so it reflects the current scored state. Returns:
-  //   AG-tier records (7-9 composite OR 3/3 Research Only): 3 passes
-  //   CP-tier records (4-6 composite OR 2/3 Research Only): 2 passes
-  //   Assistants-tier (1-3 composite OR 1/3 Research Only): 1 pass
-  // Research Only is detected when IV is scored but PV and AV are both null,
-  // matching the existing isROAi/isROCard pattern used elsewhere in the file.
-  function _computeDigBudget() {
-    var iv = scores && scores.iv;
-    var pv = scores && scores.pv;
-    var av = scores && scores.av;
-    var isResearchOnly = (iv !== null && iv > 0) && pv === null && av === null;
-    var tierScore;
-    if (isResearchOnly) {
-      tierScore = iv; // 1-3
-      if (tierScore >= 3) return 3; // AG-equivalent
-      if (tierScore >= 2) return 2; // CP-equivalent
-      return 1;                     // Assistants-equivalent
-    }
-    // Full score card: use composite IV+PV+AV
-    var composite = (iv || 0) + (pv || 0) + (av || 0);
-    if (composite >= 7) return 3; // AG
-    if (composite >= 4) return 2; // CP
-    if (composite >= 1) return 1; // Assistants
-    return 3; // No score yet (early dig before IV applies). Default to full
-              // since we don't know yet what tier this will land in.
-  }
-  // Legacy global, kept for any code path still reading it directly. Updated
-  // dynamically by _autoChainDig and runDigDeeper before each pass.
   var _DIG_PASS_MAX       = 3;
   var _pipelineAborted    = false;
   var _researchUILocked   = false;
@@ -12222,7 +12169,7 @@
     } else {
       btn.style.display = 'none';
       btn.dataset.state = '';
-      if (srchBtn) { srchBtn.style.display = ''; srchBtn.textContent = 'Search'; }
+      if (srchBtn) srchBtn.style.display = '';
     }
   }
 
@@ -12231,107 +12178,20 @@
     _researchTimer = setTimeout(checkResearchEligibility, 800);
   }
 
-  // Returns true if any of the high-value fields are still empty after the
-  // main pipeline. Used to decide whether to fire a dig pass and whether to
-  // keep chaining additional dig passes. Critical fields are events, decision
-  // makers, and full corporate address. companyLinkedIn is intentionally NOT
-  // critical: many small/local businesses genuinely don't have a company
-  // LinkedIn page, and treating its absence as a gap caused dig to fire
-  // repeatedly with nothing to find. Nice-to-have fields (observances, social
-  // media, news) don't trigger digging on their own since they aren't
-  // pre-call essentials.
-  function _hasCriticalGaps() {
-    var rd = _researchData || {};
-    var hasEvents   = (rd.eventsSite && rd.eventsSite.length > 0) ||
-                      (rd.eventsWeb  && rd.eventsWeb.length  > 0);
-    var dm          = rd.decisionMakers || {};
-    var hasDM       = (dm.ownerExec    && dm.ownerExec.name)    ||
-                      (dm.marketing    && dm.marketing.name)    ||
-                      (dm.procurement  && dm.procurement.name);
-    var ca          = rd.corporateAddress || {};
-    var hasFullAddr = !!(ca.street && ca.zip);
-    return !hasEvents || !hasDM || !hasFullAddr;
-  }
-
-  // Counts how many critical fields are populated (0-3). Used to detect when
-  // a dig pass made no progress so we can stop chaining. If dig N filled zero
-  // new criticals, dig N+1 will almost certainly do the same since the prompt
-  // and searches are deterministic given the same gap state.
-  function _countFilledCriticalFields() {
-    var rd = _researchData || {};
-    var n = 0;
-    if ((rd.eventsSite && rd.eventsSite.length > 0) ||
-        (rd.eventsWeb  && rd.eventsWeb.length  > 0)) n++;
-    var dm = rd.decisionMakers || {};
-    if ((dm.ownerExec   && dm.ownerExec.name)   ||
-        (dm.marketing   && dm.marketing.name)   ||
-        (dm.procurement && dm.procurement.name)) n++;
-    var ca = rd.corporateAddress || {};
-    if (ca.street && ca.zip) n++;
-    return n;
-  }
-
-  // Holding state shown while a background dig pass is filling gaps. Keeps
-  // the user from seeing "AI Research Ready" while data is still arriving.
-  function _showFinalizingState() {
-    var btn = document.getElementById('lightbulb-btn');
-    var txt = document.getElementById('lb-text');
-    if (txt) txt.textContent = 'Finalizing research...';
-    if (btn) {
-      btn.classList.remove('lit', 'no-results');
-      btn.classList.add('loading');
-    }
-  }
-
-  // Marks research as truly complete. Called either immediately if no dig
-  // was needed, or after the final dig pass settles. Centralizes the "Ready"
-  // state setup that was previously inlined in two completion paths.
-  function _markResearchTrulyDone() {
-    setLightbulbLoading(false);
-    setLightbulb(true);
-    setPhaseIndicator('done');
-    try { _updateCachePill(); } catch(e) {}
-    try {
-      var ov = document.getElementById('research-overlay');
-      if (ov && ov.style.display !== 'none') populateResearchPopup();
-    } catch(e) {}
-  }
-
   function _autoChainDig() {
-    // Recompute the per-record budget every check. A record may not have a
-    // score at the start of the first dig (IV is applied during P2), so the
-    // tier can shift between passes. Always use the current tier.
-    _DIG_PASS_MAX = _computeDigBudget();
-    // Only fire a dig pass if there are critical gaps. Previously fired
-    // unconditionally 3 times per record (60-90s of background work). Most
-    // records now skip dig entirely, and records with gaps stop chaining
-    // as soon as the gaps are filled.
-    if (_digPassCount >= _DIG_PASS_MAX || _pipelineAborted) {
-      _markResearchTrulyDone();
-      return;
+    // Auto-fire next dig pass if limit not reached, with a short delay
+    if (_digPassCount < _DIG_PASS_MAX && !_pipelineAborted) {
+      setTimeout(function() {
+        if (_digPassCount < _DIG_PASS_MAX && !_researchInProgress && !_pipelineAborted) {
+          _digPassCount++;
+          runDigDeeper();
+        }
+      }, 800);
     }
-    if (!_hasCriticalGaps()) {
-      _markResearchTrulyDone();
-      return;
-    }
-    _showFinalizingState();
-    setTimeout(function() {
-      _DIG_PASS_MAX = _computeDigBudget(); // re-check inside the timeout too
-      if (_digPassCount >= _DIG_PASS_MAX || _researchInProgress || _pipelineAborted) {
-        return;
-      }
-      if (!_hasCriticalGaps()) {
-        // A concurrent fetch may have filled gaps in the 800ms wait.
-        _markResearchTrulyDone();
-        return;
-      }
-      _digPassCount++;
-      runDigDeeper();
-    }, 800);
   }
 
   function showDigButton() { _autoChainDig(); }
-  function hideDigButton() {} // no-op, kept for call-site compatibility
+  function hideDigButton() {} // no-op — kept for call-site compatibility
 
   function triggerDigDeeper() {
     if (_researchInProgress) return;
@@ -12365,10 +12225,6 @@
                         (rd.decisionMakers.procurement && rd.decisionMakers.procurement.name));
     var hasHooks     = rd.salesHooks && rd.salesHooks.length > 0;
     var hasCoLi      = !!rd.companyLinkedIn;
-    // Address considered complete only if street + zip are both present.
-    // City/state alone is what the AI sometimes returns as a partial guess.
-    var ca           = rd.corporateAddress || {};
-    var hasFullAddr  = !!(ca.street && ca.zip);
 
     // ── Build what-we-know context ────────────────────────────────
     var known = [];
@@ -12388,7 +12244,6 @@
 
     // ── Build what's missing instruction ─────────────────────────
     var missing = [];
-    if (!hasFullAddr) missing.push('the full corporate/HQ ADDRESS (street, suite if any, city, state, ZIP) — open ' + searchDomain + '/contact (or similar) and extract the street and ZIP. ' + (ca.city || ca.state ? 'We already have ' + [ca.city, ca.state].filter(Boolean).join(', ') + ' — fill in the street and ZIP.' : ''));
     if (!hasEvents) missing.push('upcoming events, galas, conferences, or fundraisers this company hosts or attends');
     if (!hasObs)    missing.push('industry observances and awareness months relevant to their industry');
     if (!hasCoLi)   missing.push('the company LinkedIn page URL — search site:linkedin.com/company ' + company);
@@ -12423,27 +12278,18 @@
     var prompt = [
       'You are researching a company for QLP (promotional products). Return ONLY valid JSON, no markdown.',
       'Company: ' + company + ' | Domain: ' + searchDomain + (contactName ? ' | Contact: ' + contactName : '') + ' | Today: ' + todayStr,
-      'WHAT WE ALREADY KNOW (do NOT repeat, add NEW information only):',
+      'WHAT WE ALREADY KNOW (do NOT repeat this data — only add NEW information):',
       known.join('\n'),
-      'WHAT WE NEED YOU TO FIND (priority-ordered, up to 3 searches, allocate where they add the most value):',
+      'WHAT WE NEED YOU TO FIND (use 1-2 searches):',
       missing.map(function(m,i){return (i+1)+'. '+m;}).join('\n'),
-      'Open pages rather than reading just search snippets. This is especially important for addresses (street and ZIP are usually inside the contact page, not in the search preview), decision-maker LinkedIn URLs, and event details.',
-      'URL discipline: only return URLs that appear verbatim in search results. Never fabricate or construct.',
       'Return ONLY new data not already listed above. Return ONLY valid JSON:',
-      '{"companyLinkedIn":"https://linkedin.com/company/... or empty","eventsWeb":[{"title":"","date":"Mon D YYYY","venue":"","source":"","recurring":false,"notes":"QLP promo opportunity","summary":["Type:","Turnout:","Address:","Purpose:","QLP Opportunity:"]}],"observances":[{"title":"","date":"Mon D-D YYYY","notes":"QLP promo opportunity","summary":["Type:Industry observance","Purpose:","QLP Opportunity:"]}],"recentNews":[{"headline":"short","date":"Mon YYYY","sourceUrl":""}],"socialMedia":{"facebook":"","instagram":"","twitter":"","tiktok":"","youtube":"","snapchat":""},"corporateAddress":{"street":"","suite":"","city":"","state":"","zip":""},"decisionMakers":{"ownerExec":{"name":"","title":"","linkedin":"https://linkedin.com/in/... or empty","email":""},"marketing":{"name":"","title":"","linkedin":"https://linkedin.com/in/... or empty","email":""},"procurement":{"name":"","title":"","linkedin":"https://linkedin.com/in/... or empty","email":""}}}'
+      '{"companyLinkedIn":"https://linkedin.com/company/... or empty","eventsWeb":[{"title":"","date":"Mon D YYYY","venue":"","source":"","recurring":false,"notes":"QLP promo opportunity","summary":["Type:","Turnout:","Address:","Purpose:","QLP Opportunity:"]}],"observances":[{"title":"","date":"Mon D-D YYYY","notes":"QLP promo opportunity","summary":["Type:Industry observance","Purpose:","QLP Opportunity:"]}],"recentNews":[{"headline":"short","date":"Mon YYYY","sourceUrl":""}],"socialMedia":{"facebook":"","instagram":"","twitter":"","tiktok":"","youtube":"","snapchat":""},"decisionMakers":{"ownerExec":{"name":"","title":"","linkedin":"https://linkedin.com/in/... or empty","email":""},"marketing":{"name":"","title":"","linkedin":"https://linkedin.com/in/... or empty","email":""},"procurement":{"name":"","title":"","linkedin":"https://linkedin.com/in/... or empty","email":""}}}'
     ].join('\n');
 
     // ── Fire the supplemental search (90s timeout) ───────────────
-    // sonnet:true routes this to Sonnet. Dig is search-heavy and underperforms
-    // on Haiku the same way P1/P2 did before the same fix was applied to them.
-    // Snapshot the critical-field count BEFORE the fetch so we can detect
-    // zero-progress digs and break the chain in _autoChainDig. Without this,
-    // a company that genuinely has no findable events or DMs would loop
-    // through all _DIG_PASS_MAX passes with no result.
-    var _preDigCriticalCount = _countFilledCriticalFields();
     var digController = new AbortController();
     var digTimer = setTimeout(function() { digController.abort(); }, 90000);
-    fetch(GS_URL, { method: 'POST', body: JSON.stringify({ action: 'runResearch', prompt: prompt, rep: window._currentRep || '', sonnet: true }), signal: digController.signal })
+    fetch(GS_URL, { method: 'POST', body: JSON.stringify({ action: 'runResearch', prompt: prompt, rep: window._currentRep || '' }), signal: digController.signal })
     .then(function(r) { return r.text(); })
     .then(function(raw) {
       clearTimeout(digTimer);
@@ -12498,23 +12344,6 @@
             }
           });
         }
-        // Merge corporate address — only fill empty subfields. Lets the dig
-        // pass top up a partial address from P2 (e.g. city/state only) with
-        // the street/suite/zip without overwriting good data.
-        if (r2.corporateAddress && typeof r2.corporateAddress === 'object') {
-          if (!_researchData.corporateAddress) _researchData.corporateAddress = {};
-          var _addrChanged = false;
-          ['street','suite','city','state','zip'].forEach(function(k) {
-            var v = (r2.corporateAddress[k] || '').toString().trim();
-            if (!v) return;
-            if (k === 'zip') v = v.replace(/\D/g,'').substring(0,5);
-            if (v && !_researchData.corporateAddress[k]) {
-              _researchData.corporateAddress[k] = v;
-              _addrChanged = true;
-            }
-          });
-          if (_addrChanged) { try { applyAiAddress(); } catch(e) {} }
-        }
       }
       _researchInProgress = false;
       _updateDigFooter('done');
@@ -12524,28 +12353,17 @@
         _segPassData[i].push({ count: 0, elapsed: digElapsed, isRunning: false });
       });
       try { _refreshSegCounts(); } catch(e) {}
-      // Refresh popup if open so newly-arrived fields show immediately
+      // Re-show + button if passes remain
+      if (_digPassCount < _DIG_PASS_MAX) showDigButton();
+      // Refresh popup if open
       try { var ov = document.getElementById('research-overlay'); if (ov && ov.style.display !== 'none') populateResearchPopup(); } catch(e) {}
-      // Did this dig pass fill any new critical fields? If not, the next dig
-      // pass will almost certainly also fail (same gap state, same prompt,
-      // same search results). Break the chain by settling instead of looping
-      // through the remaining budget on a company that genuinely doesn't have
-      // the missing data findable.
-      var postDigCriticalCount = _countFilledCriticalFields();
-      if (postDigCriticalCount === _preDigCriticalCount) {
-        _markResearchTrulyDone();
-      } else {
-        _autoChainDig();
-      }
       _checkPipelineEnd();
     })
     .catch(function() {
       clearTimeout(digTimer);
       _researchInProgress = false;
       _updateDigFooter('done');
-      // Dig failed or timed out. Still settle so user isn't stuck on
-      // "Finalizing research..." forever.
-      _markResearchTrulyDone();
+      if (_digPassCount < _DIG_PASS_MAX) showDigButton();
       _checkPipelineEnd();
     });
   }
@@ -13251,71 +13069,41 @@
     // ── PHASE 1 — LinkedIn + Events ──────────────────────────────────
     var emailPrefix = (email && email.indexOf('@') !== -1) ? email.split('@')[0] : '';
     var p1Lines = [
-      "Find decision makers and upcoming events for " + company + " (" + searchDomain + "). QLP sells promotional products. Today: " + todayStr + ". Return only valid JSON."
+      "Find LinkedIn profiles and events for " + company + " (" + searchDomain + "). QLP sells promotional products. Today: " + todayStr + ". Return only valid JSON."
     ];
     if (contactName) {
       p1Lines.push(
-        "The rep is contacting " + contactName + (email ? " <" + email + ">" : "") + " at " + company + ". Find this person's LinkedIn profile." +
-        (emailPrefix ? " Try linkedin.com/in/" + emailPrefix + " (email prefix is often the slug)." : "") +
+        "CONTACT: " + contactName + (email ? " <" + email + ">" : "") + ". Search LinkedIn for this person at " + company + "." +
+        (emailPrefix ? " Try linkedin.com/in/" + emailPrefix + " (email prefix often = slug)." : "") +
         " Match requires BOTH name AND company/domain alignment."
       );
     }
-    var _curYear  = new Date().getFullYear();
-    var _nextYear = _curYear + 1;
     p1Lines.push(
-      "Search budget: up to 3 web searches. Allocate by priority:",
-      "1. Decision makers. Search 'site:linkedin.com/in " + company + " (\"marketing director\" OR \"marketing manager\" OR \"marketing coordinator\" OR \"brand manager\" OR \"communications director\" OR \"event manager\" OR \"events coordinator\" OR \"procurement manager\" OR \"CEO\" OR \"president\" OR \"owner\" OR \"founder\")'. Copy linkedin.com/in/ URLs verbatim from the results. Prioritize TACTICAL roles (marketing managers/coordinators, brand managers, event coordinators, communications) over executive roles when filling slots, since tactical contacts are the realistic first conversation for promotional products. Aim to fill ownerExec (CEO/president/owner/founder), marketing (tactical marketing person), procurement (purchasing/operations), and eventManager (events/communications) slots.",
-      "2. Upcoming events. Search '" + company + " (events OR gala OR fundraiser OR conference OR tournament OR golf OR auction OR charity) " + _curYear + " " + _nextYear + "'. Look across their site, Eventbrite, charity pages, sponsor lists, news, press releases, industry publications, social. Open the most relevant result rather than reading just the snippet. Event dates and venues are usually inside the page, not in the search preview.",
-      "3. Use the third search where it adds the most value. Examples: a name-specific LinkedIn search if a decision maker came back without a URL, 'site:" + searchDomain + " events' if no events surfaced, or a backup name match if the contact wasn't located. Skip the third search if priorities 1 and 2 came back complete.",
-      "Bucketing: if an event's source URL is on " + searchDomain + ", put it in eventsSite. Everything else (third-party sites, news, sponsor pages, Eventbrite, etc.) goes in eventsWeb. Both arrays may be populated.",
-      "Date filter: events dated " + _curYear + " or later only. Skip past events. If the date is unclear, include it but leave the date field empty.",
-      "URL discipline: only return URLs that appear verbatim in search results. Never fabricate or construct. Every event needs a 'source' URL.",
+      "Use up to 2 searches, prioritized highest-value first: " +
+        "(1 - REQUIRED) 'site:linkedin.com/in " + company + " (\"marketing director\" OR \"VP marketing\" OR \"event manager\" OR \"procurement manager\" OR \"CEO\" OR \"president\" OR \"owner\")' — decision makers. " +
+        "(2 - REQUIRED) '" + searchDomain + " events 2025 2026' — events on their own site → eventsSite. " +
+        "Skip the general '" + company + " upcoming events' search — only run it if both required searches return nothing useful.",
+      "Rules: Only return URLs that appear verbatim in search results. Never fabricate or construct URLs. Every event needs a 'source' URL where you found it.",
       'Schema: {"companyLinkedIn":"","contactLinkedIn":"","contactPerson":{"found":false,"title":"","linkedin":"","email":"","confidence":"high|medium|low"},"decisionMakers":{"ownerExec":{"name":"","title":"","linkedin":"","email":""},"marketing":{"name":"","title":"","linkedin":"","email":""},"procurement":{"name":"","title":"","linkedin":"","email":""},"eventManager":{"name":"","title":"","linkedin":"","email":""}},"eventsSite":[{"title":"","date":"Mon D YYYY","venue":"","source":"","recurring":false,"notes":""}],"eventsWeb":[{"title":"","date":"Mon D YYYY","venue":"","source":"","recurring":false,"notes":""}]}'
     );
     var p1 = p1Lines.join("\n");
 
-    // ── PHASE 2 — Company details + observances + hooks (Sonnet, secondary) ──
+    // ── PHASE 2 — Company details + observances + hooks (Haiku, secondary) ──
     // Sales Hooks are generated INSIDE this same call rather than a separate
-    // call. Saves ~$0.02 per record vs the prior architecture.
-    // IV brackets are pulled from _scoringConfig so admin tuning of tier
-    // thresholds stays in sync with what the AI is told. Falls back to the
-    // built-in defaults (50 / 500 employees, $5M / $50M revenue) if config
-    // is missing for any reason.
-    var _ivCfg = (_scoringConfig && _scoringConfig.iv) ? _scoringConfig.iv : { headcount:{tier2:50,tier3:500}, revenue:{tier2:5000000,tier3:50000000} };
-    var _empT2 = _ivCfg.headcount.tier2;
-    var _empT3 = _ivCfg.headcount.tier3;
-    var _revT2 = _ivCfg.revenue.tier2;
-    var _revT3 = _ivCfg.revenue.tier3;
-    function _fmtRevForPrompt(n) {
-      if (n >= 1000000) return '$' + (n/1000000) + 'M';
-      if (n >= 1000)    return '$' + (n/1000)    + 'K';
-      return '$' + n;
-    }
-    var _ivBrackets = 'Small (under ' + _empT2 + ' employees or under ' + _fmtRevForPrompt(_revT2) + ' revenue), ' +
-                      'Regional (' + _empT2 + '-' + (_empT3 - 1) + ' employees or ' + _fmtRevForPrompt(_revT2) + ' to ' + _fmtRevForPrompt(_revT3) + '), ' +
-                      'National (' + _empT3 + '+ employees or ' + _fmtRevForPrompt(_revT3) + '+)';
+    // request. P2 already has all the context it needs (employees, revenue,
+    // news, observances, blurb), so adding hooks generation costs only the
+    // extra output tokens (~$0.005) instead of a separate ~$0.022 call.
     var p2 = [
-      "Build a company profile and sales hooks for " + company + " (" + searchDomain + ") for QLP (promotional products). Today: " + todayStr + ". Return only valid JSON.",
-      "Search budget: up to 3 web searches. Allocate by priority:",
-      "1. Contact page. Search '" + searchDomain + " contact' and open the contact page itself rather than reading the snippet. Extract MAIN PHONE (switchboard), FULL corporate ADDRESS (street, suite if shown, city, state, ZIP), and social media icon URLs (Facebook, Instagram, X/Twitter, TikTok, YouTube, Snapchat) from the footer. Partial city/state-only addresses are not acceptable when the full address is published on their site. If they have multiple offices, return the corporate or HQ address.",
-      "2. About or size page. Search '" + searchDomain + " about' or '" + company + " company size revenue'. Extract employees (headcount), revenue, founded year, industry, and a 1-sentence blurb describing what they do.",
-      "Size scoring context: the company's IV tier uses the HIGHER of employees vs revenue, so either field alone is sufficient when it clearly fits a tier. Tiers: " + _ivBrackets + ". If headcount clearly places them in a tier, don't burn extra effort hunting revenue (or vice versa). Industry and blurb also matter: a clean industry label and a substantive 1-sentence blurb feed a downstream classifier when neither headcount nor revenue is available. Always return values verbatim from sources, never infer or estimate numbers to match a tier.",
-      "3. Recent news. Search '" + company + " news " + _curYear + "' or '" + company + " press release' for 2-5 recent headlines with dates and source URLs. Also note industry awareness months or observances if surfaced. Skip the third search if priorities 1 and 2 came back thin and you'd rather spend it broadening one of them.",
-      "Sales hooks: after the searches are done, generate 3-5 sales hooks. No additional search needed. Synthesize from what you found above. Each hook is a specific factual finding paired with a concrete promotional product pitch. Focus on milestones (anniversaries, growth), recent news, hiring surges, expansions, brand identity angles, awards, industry trends they could capitalize on. Skip events, observances, and trade shows (tracked separately). Include 'date' only if the finding is time-sensitive. Empty salesHooks array is fine if no useful angles emerge.",
-      "Foot-in-the-door pick: also pick ONE person from the decision makers found in the prior phase as the recommended FIRST contact (the foot-in-the-door). The CEO/owner is typically NOT the right first contact at larger companies because executives are unreachable cold. Use this playbook by company shape:",
-      "  - Enterprise (500+ employees): marketing operations, brand manager, event manager, or communications director. NOT the CEO.",
-      "  - Mid-market (50-499 employees): marketing director or marketing manager.",
-      "  - Small business (under 50 employees): owner or founder. At this size they typically own marketing themselves.",
-      "  - Nonprofits: director of development, events manager, or communications director.",
-      "  - Healthcare: foundation director, community outreach, or volunteer coordinator. Procurement is too formal to pitch.",
-      "  - Education: director of student activities, athletics director, or advancement/alumni.",
-      "  - Government: communications officer or community affairs. Procurement won't pitch.",
-      "Output the pick in the footInTheDoor schema field. Include why (one sentence on why this person is the right entry point for QLP given the company shape) and openingAngle (one sentence on how the rep should position the first conversation, leveraging something specific you found about the company). If none of the surfaced decision makers fit the playbook, leave footInTheDoor empty rather than recommending the wrong person.",
+      "Research " + company + " (" + searchDomain + ") for QLP (promotional products). Today: " + todayStr + ". Return only valid JSON.",
+      "Use up to 2 searches, both required: " +
+        "(1) '" + searchDomain + " contact' — extract MAIN PHONE (switchboard), full corporate ADDRESS from contact page or footer, and any social media icon URLs (Facebook, Instagram, X/Twitter, TikTok, YouTube, Snapchat) found in the page footer. " +
+        "(2) '" + searchDomain + " about' OR '" + company + " company size revenue' — extract employees (number), revenue, founded year, industry, 1-sentence blurb, and recent news. Also note industry awareness months / observances if visible.",
+      "Address and phone are HIGH PRIORITY — they're typically on the contact page or website footer. Partial address OK. Don't guess phone numbers.",
+      "Social media URLs: capture official Facebook, Instagram, X/Twitter, TikTok, YouTube, and Snapchat URLs from the footer or social-icon links. Only return URLs that appear verbatim on the company's pages. Leave empty if not found — do NOT guess or construct.",
       "Phone format: digits with separators (e.g. (555) 123-4567 or +1 555 123 4567).",
-      "Employees: plain integer headcount (e.g. 5500 or 50000), commas OK for readability. Do not concatenate multiple numbers. If the source says '5,000 to 7,000', return 5000. Maximum plausible value is 2,500,000 (Walmart-scale). If unsure or a figure looks impossibly large, return empty.",
-      "Social media URLs: only verbatim URLs from the company's own pages. Do not guess or construct.",
-      "URL discipline: only return URLs that appear verbatim in search results.",
-      'Schema: {"companyName":"","employees":"","industry":"Healthcare|Education|Finance|Nonprofit|Retail|Technology|Manufacturing|Government|Legal|Real Estate or empty","blurb":"","revenue":"e.g. $2M","foundedYear":"YYYY","companyPhone":"","socialMedia":{"facebook":"","instagram":"","twitter":"","tiktok":"","youtube":"","snapchat":""},"recentNews":[{"headline":"","date":"Mon YYYY","sourceUrl":""}],"observances":[{"title":"","date":"Mon D YYYY","notes":""}],"corporateAddress":{"street":"","suite":"","city":"","state":"","zip":""},"footInTheDoor":{"name":"","title":"","linkedin":"","email":"","why":"one sentence on why this person is the right first contact","openingAngle":"one sentence on how to position the first conversation"},"salesHooks":[{"type":"milestone|expansion|hiring|news|brand|award|industry","finding":"one sentence specific fact","pitch":"one sentence concrete swag/promo product angle","date":"Mon D YYYY or empty","source":"URL or empty"}]}'
+      "Employees: total full-time headcount as a plain integer (e.g. 5500 or 50000). Use commas if it helps readability (e.g. 5,500). Do NOT concatenate multiple numbers. If the source says '5,000 to 7,000', return 5000. Maximum plausible value is 2,500,000 (Walmart-scale). If unsure or a figure looks impossibly large, return empty string.",
+      "SALES HOOKS — also generate 3 to 5 sales hooks for QLP (promotional products distributor) based on the company facts above. Each hook = a specific factual finding + a concrete promo product pitch tied to it. Focus on: company milestones (anniversaries, growth), recent news/PR, hiring surges, expansions (new locations, markets), brand identity angles, awards/recognition, industry trends they should capitalize on. Do NOT generate hooks about events, conferences, trade shows, or observances — those are tracked separately. The 'finding' should be a specific fact the rep can mention on the call. The 'pitch' should be a concrete product suggestion. Include a 'date' field ONLY if the finding is time-sensitive (anniversary, fiscal quarter end). If no useful hooks, return an empty salesHooks array.",
+      'Schema: {"companyName":"","employees":"","industry":"Healthcare|Education|Finance|Nonprofit|Retail|Technology|Manufacturing|Government|Legal|Real Estate or empty","blurb":"","revenue":"e.g. $2M","foundedYear":"YYYY","companyPhone":"","socialMedia":{"facebook":"","instagram":"","twitter":"","tiktok":"","youtube":"","snapchat":""},"recentNews":[{"headline":"","date":"Mon YYYY","sourceUrl":""}],"observances":[{"title":"","date":"Mon D YYYY","notes":""}],"corporateAddress":{"street":"","suite":"","city":"","state":"","zip":""},"salesHooks":[{"type":"milestone|expansion|hiring|news|brand|award|industry","finding":"one sentence specific fact","pitch":"one sentence concrete swag/promo product angle","date":"Mon D YYYY or empty","source":"URL or empty"}]}'
     ].join("\n");
 
     // ── Hooks prompt builder (uses context from P1+P2, no search) ─
@@ -13371,18 +13159,22 @@
 
     // ── Fire Phase 1 — LinkedIn + Events (Sonnet) ───────────────
     // Wrapped in _fireP1Pipeline so we can chain it after Phase 0 verification.
-    // sonnet:true is REQUIRED — without it, runResearch_ falls through to Haiku
-    // (parallelModel), which is too "efficient" with the search tool and tends
-    // to skip the second of two required searches. That left eventsSite/eventsWeb
-    // empty for most records.
     function _fireP1Pipeline() {
     _runPhase(0,
-      { action: 'runResearch', prompt: p1, rep: window._currentRep || '', sonnet: true, bypassCache: _bypassCacheRun },
+      { action: 'runResearch', prompt: p1, rep: window._currentRep || '', bypassCache: _bypassCacheRun },
       function(result, elapsed) {
-        if (!result) { _abortPipeline(); return false; }
+        // Always set domain from form input (not from API response) so downstream
+        // code reading _researchData.domain has a value even if P1 fails.
+        _researchData.domain = searchDomain;
+        if (!result) {
+          // P1 returned no parseable result. Don't abort the entire pipeline —
+          // P2, Trade Shows, etc. have independent data sources and can still
+          // succeed. Mark Phase 1 red and let nextFn (P2) run.
+          _logError('phase-1', new Error('null result, continuing pipeline'));
+          return false;
+        }
 
         // P1: LinkedIn + Events — use typed cleaners
-        _researchData.domain = searchDomain;
         var _coLi = _cleanLinkedIn(result.companyLinkedIn, 'company');
         if (_coLi && !_researchData.companyLinkedIn) _researchData.companyLinkedIn = _coLi;
         var _ctLi = _cleanLinkedIn(result.contactLinkedIn, 'in');
@@ -13499,28 +13291,8 @@
           .catch(function() {}).then(_tsSettle, _tsSettle); // silent fail + token-guarded settle
         })();
 
-        // Build P2 prompt at dispatch time so it can include the decision
-        // makers P1 just surfaced. The foot-in-the-door playbook needs the
-        // actual candidate pool to pick from. Static p2 + dynamic prefix
-        // keeps the cache key stable for the static portion (the prefix
-        // doesn't go through _cacheKeyForPrompt's dynamic-strip; it's a
-        // company-specific signal that's expected to vary per record).
-        var _dmCtx = '';
-        var _dmList = [];
-        var _dm = _researchData.decisionMakers || {};
-        ['ownerExec','marketing','procurement','eventManager'].forEach(function(k) {
-          if (_dm[k] && _dm[k].name) {
-            _dmList.push('  - ' + (_dm[k].title || k) + ': ' + _dm[k].name +
-                         (_dm[k].linkedin ? ' (' + _dm[k].linkedin + ')' : ''));
-          }
-        });
-        if (_dmList.length) {
-          _dmCtx = 'DECISION MAKERS already found (from Phase 1) — pick one of these as foot-in-the-door, or leave empty if none fit the playbook:\n' +
-                   _dmList.join('\n') + '\n\n';
-        }
-        var _p2Final = _dmCtx + p2;
         _runPhase(2,
-          { action: 'runResearch', prompt: _p2Final, rep: window._currentRep || '', sonnet: true, bypassCache: _bypassCacheRun },
+          { action: 'runResearch', prompt: p2, rep: window._currentRep || '', bypassCache: _bypassCacheRun },
           function(result, elapsed) {
             var got = false;
             if (result) {
@@ -13583,25 +13355,6 @@
                 try { applyAiAddress(); } catch(e) {}
                 got = true;
               }
-              // Parse foot-in-the-door pick. AI selects ONE person from the
-              // decision makers surfaced in P1 as the recommended first contact.
-              // Skip the LinkedIn URL if it's not a valid http(s) URL (same
-              // pattern used elsewhere for AI-returned profile links).
-              if (result.footInTheDoor && typeof result.footInTheDoor === 'object' && result.footInTheDoor.name) {
-                var fitd = result.footInTheDoor;
-                var cleanFitd = {
-                  name:         _stripTags(fitd.name || ''),
-                  title:        _stripTags(fitd.title || ''),
-                  linkedin:     (fitd.linkedin && /^https?:\/\//.test(fitd.linkedin)) ? fitd.linkedin : '',
-                  email:        _stripTags(fitd.email || ''),
-                  why:          _stripTags(fitd.why || ''),
-                  openingAngle: _stripTags(fitd.openingAngle || '')
-                };
-                if (cleanFitd.name) {
-                  _researchData.footInTheDoor = cleanFitd;
-                  got = true;
-                }
-              }
               // Auto-fill company name if blank
               var companyEl = document.getElementById('f-company');
               if (companyEl && !companyEl.value.trim() && result.companyName) { companyEl.value = result.companyName; companyEl.classList.add('ai-filled'); }
@@ -13646,16 +13399,14 @@
                 var safeLegal = legalName.replace(/["\\\n\r]/g, ' ').trim();
                 if (!safeLegal) return;
                 var disambigPrompt = [
-                  'Find LinkedIn URLs for ' + safeLegal + ' (' + searchDomain + '). The original name we searched did not match this organization. ' + safeLegal + ' is the verified legal name from their website. Today: ' + todayStr + '. Return only valid JSON.',
-                  'Search budget: up to 3 searches. Priorities:',
-                  '1. Company LinkedIn. site:linkedin.com/company "' + safeLegal + '" to find the official company page URL.' +
-                    (hasNoDM ? ' 2. Decision makers. site:linkedin.com/in "' + safeLegal + '" ("marketing director" OR "VP marketing" OR "event manager" OR "procurement" OR "CEO" OR "president"). Copy linkedin.com/in/ URLs verbatim from results.' : ''),
-                  '3. Third search is flexible. Use a name variant or specific role search if priorities 1' + (hasNoDM ? ' or 2' : '') + ' came back thin. Skip if priorities came back complete.',
-                  'URL discipline: only return URLs that appear verbatim in search results. Never fabricate.',
+                  'Find LinkedIn URLs for ' + safeLegal + ' (' + searchDomain + '). Today: ' + todayStr + '. Return only valid JSON.',
+                  'Use 1-2 searches: (1) site:linkedin.com/company "' + safeLegal + '" — find official company LinkedIn page.' +
+                    (hasNoDM ? ' (2) site:linkedin.com/in "' + safeLegal + '" ("marketing director" OR "VP marketing" OR "event manager" OR "procurement" OR "CEO" OR "president") — find decision makers.' : ''),
+                  'Rules: Only return URLs that appear verbatim in search results. Never fabricate.',
                   'Schema: {"companyLinkedIn":"","decisionMakers":{"ownerExec":{"name":"","title":"","linkedin":"","email":""},"marketing":{"name":"","title":"","linkedin":"","email":""},"procurement":{"name":"","title":"","linkedin":"","email":""},"eventManager":{"name":"","title":"","linkedin":"","email":""}}}'
                 ].join('\n');
                 var retryToken = _thisToken;
-                fetch(GS_URL, { method: 'POST', body: JSON.stringify({ action: 'runResearch', prompt: disambigPrompt, rep: window._currentRep || '', sonnet: true, bypassCache: _bypassCacheRun }) })
+                fetch(GS_URL, { method: 'POST', body: JSON.stringify({ action: 'runResearch', prompt: disambigPrompt, rep: window._currentRep || '', bypassCache: _bypassCacheRun }) })
                   .then(function(r) { return r.text(); })
                   .then(function(raw) {
                     if (_searchToken !== retryToken || _pipelineAborted) return;
@@ -13758,6 +13509,11 @@
               if (_searchToken !== _thisToken) return;
               _researchInProgress = false;
               setLightbulbLoading(false);
+              setLightbulb(true);
+              setPhaseIndicator('done');
+              try { _updateCachePill(); } catch(e) {}
+              try { var ov = document.getElementById('research-overlay'); if (ov && ov.style.display !== 'none') populateResearchPopup(); } catch(e) {}
+              try { showDigButton(); } catch(e) {}
               // Lock Phase 3 (Analyze = Sales Hooks) immediately. Hooks are now
               // generated inside P2's response so the Analyze phase completes at
               // the same moment as Details. Use a tiny elapsed value (0.1s) since
@@ -13765,42 +13521,29 @@
               var hooksCount = (_researchData.salesHooks || []).length;
               try { _lockPhaseTime(3, 0.1, hooksCount ? '#5DCAA5' : '#94a3b8'); } catch(e) {}
               try { _refreshSegCounts(); } catch(e) {}
-              // Update hooks button: "Rerun Sales Hooks" if any were generated
-              // by P2, otherwise the original "GET SALES HOOKS!" call-to-action.
+              try { updateFollowupCard(); } catch(e) {}
+              // Update hooks button — "Rerun Sales Hooks" if any hooks were generated
+              // by P2, otherwise the original "GET SALES HOOKS!" call-to-action
               var hTxt = document.getElementById('rp-more-txt');
               var hBtn = document.getElementById('rp-more-btn');
               if (hTxt) hTxt.textContent = hooksCount ? 'Rerun Sales Hooks' : 'GET SALES HOOKS!';
               if (hBtn) { hBtn.disabled = false; hBtn.classList.remove('deep-search-pulsing'); hBtn.style.opacity = '1'; }
-              // Unlock IV tile if still pending (AI couldn't determine IV)
+              // Unlock IV tile if still pending
               var ivCardS = document.getElementById('card-iv');
               if (ivCardS) ivCardS.classList.remove('iv-pending-lock');
-              // Decide whether to hold the "Ready" state for a dig pass. If
-              // there are critical gaps (no events, no DMs, partial address,
-              // no company LinkedIn) AND dig passes are available, fire dig
-              // and stay in "Finalizing research..." until it settles. This
-              // is the fix for the bug where the UI showed "AI Research
-              // Ready" with empty events, then events populated 15-20s later
-              // when the background dig pass completed.
-              if (_hasCriticalGaps() && _digPassCount < _DIG_PASS_MAX && !_pipelineAborted) {
-                _autoChainDig();
-              } else {
-                _markResearchTrulyDone();
-              }
-              try { updateFollowupCard(); } catch(e) {}
-              // Settle pipeline now to unlock buttons immediately. Dig passes
-              // continue chaining in the background until gaps fill or budget
-              // is exhausted.
               if (!_pipelineSettled) {
                 _pipelineSettled = true;
                 _onFetchSettled();
               }
-              // Auto-save research data so it persists even without manual send
               try { _autoSaveResearch(); } catch(e) {}
             })();
           }
         );
       },
-      _abortPipeline
+      // No explicit onTimeout — let _runPhase's default behavior continue to nextFn.
+      // Aborting the whole pipeline on P1 timeout is too aggressive; P2 / Trade Shows
+      // have independent data and should still run.
+      null
     );
     } // end _fireP1Pipeline
 
@@ -14438,10 +14181,6 @@
     validateBeforeSend().then(function(proceed) {
       if (!proceed) return;
       var rec = _buildCurrentRecord();
-      // Stamp the existing record id so the backend update lands on the same
-      // row and the cache lookup below matches. Without this, cache[i] = rec
-      // wipes the id field and breaks future _savedRecordId-based lookups.
-      rec.id = _savedRecordId;
       resubBtn.disabled = true;
       resubBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Updating...';
       resubBtn.style.opacity = '0.7';
@@ -14453,26 +14192,17 @@
           alert('Update failed. Please try again.');
           return;
         }
-        // Update local caches. Use Object.assign instead of replacing the
-        // whole object so backend-assigned fields (recordNum, any future
-        // server-only metadata) survive the merge. Matches the send-email
-        // path's pattern.
+        // Update local caches
         [_recordsCache, _archiveCache].forEach(function(cache) {
           if (!cache) return;
           for (var i = 0; i < cache.length; i++) {
             if (String(cache[i].id) === String(_savedRecordId)) {
-              Object.assign(cache[i], rec);
+              cache[i] = rec;
               break;
             }
           }
         });
         updateTabCounts();
-        // Refresh Recent panel so the updated score/status/owner reflect
-        // immediately. Without this call, the Recent list keeps showing the
-        // pre-resubmit data (most visibly: a record that was auto-saved as
-        // RO with IV only, then resubmitted with PV/AV added, still shows
-        // as "1/3 RO" in Recent until a full page reload).
-        _renderActivityCard();
         // Flash success then re-lock
         resubBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Updated';
         resubBtn.style.borderColor = 'rgba(29,158,117,0.6)';
@@ -14540,20 +14270,17 @@
         alert('Update failed. Please try again.');
         return;
       }
-      // Sync local caches. Object.assign keeps backend-assigned fields
-      // (recordNum, etc.) intact; cache[i] = rec would wipe them.
+      // Sync local caches
       [_recordsCache, _archiveCache].forEach(function(cache) {
         if (!cache) return;
         for (var i = 0; i < cache.length; i++) {
           if (String(cache[i].id) === String(_savedRecordId)) {
-            Object.assign(cache[i], rec);
+            cache[i] = rec;
             break;
           }
         }
       });
       try { updateTabCounts(); } catch(e) {}
-      // Refresh Recent so the updated score/status reflects immediately.
-      try { _renderActivityCard(); } catch(e) {}
       // Flash success, then return to resting state
       btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Updated';
       btn.style.background = 'rgba(29,158,117,0.2)';
@@ -18318,37 +18045,6 @@
       }
     }
 
-    // ── First Contact (AI recommended foot-in-the-door) ───
-    // Shown between Your Contact and Key Decision Makers. The AI picked this
-    // person from the surfaced decision makers using the company-shape
-    // playbook in the P2 prompt. The CEO is usually NOT this person at
-    // larger companies; this card surfaces the realistic first conversation.
-    var fitd = _researchData.footInTheDoor;
-    if (fitd && fitd.name) {
-      var fitdInitials = (fitd.name||'').split(' ').map(function(w){return w[0]||'';}).slice(0,2).join('').toUpperCase();
-      var fitdLinks = '';
-      if (fitd.linkedin) {
-        var _fLi = fitd.linkedin.match(/^https?:\/\//) ? fitd.linkedin : 'https://' + fitd.linkedin;
-        fitdLinks += '<a href="' + _fLi + '" target="_blank" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;color:#5DCAA5;background:rgba(93,202,165,0.12);border:1px solid rgba(93,202,165,0.3);border-radius:4px;padding:2px 7px;text-decoration:none;margin-right:4px;">in LinkedIn</a>';
-      }
-      if (fitd.email) {
-        fitdLinks += '<a href="mailto:' + fitd.email + '" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;color:#34d399;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.25);border-radius:4px;padding:2px 7px;text-decoration:none;margin-right:4px;">✉ Email</a>' + _copyIconHtml(fitd.email, 'Email copied');
-      }
-      html += '<div style="font-size:10px;font-weight:600;color:#5DCAA5;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid rgba(93,202,165,0.2);padding-bottom:8px;margin-bottom:10px;margin-top:4px;">First Contact <span style="color:#475569;font-weight:500;text-transform:none;letter-spacing:0;font-size:10px;margin-left:6px;">AI recommended</span></div>';
-      html += '<div style="background:rgba(93,202,165,0.06);border:1px solid rgba(93,202,165,0.3);border-radius:10px;padding:12px 14px;margin-bottom:14px;">' +
-        '<div style="display:flex;align-items:center;gap:10px;">' +
-          '<div style="width:36px;height:36px;border-radius:50%;background:rgba(93,202,165,0.18);border:1.5px solid rgba(93,202,165,0.45);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#5DCAA5;flex-shrink:0;">' + fitdInitials + '</div>' +
-          '<div style="flex:1;min-width:0;">' +
-            '<div style="font-size:14px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + fitd.name + '</div>' +
-            '<div style="font-size:11px;color:#5DCAA5;margin-top:1px;">' + (fitd.title || '') + '</div>' +
-          '</div>' +
-        '</div>' +
-        (fitd.why         ? '<div style="font-size:11px;color:var(--text-muted);margin-top:9px;padding-top:9px;border-top:1px solid rgba(93,202,165,0.15);line-height:1.5;"><span style="font-size:9px;font-weight:600;color:#5DCAA5;text-transform:uppercase;letter-spacing:0.08em;margin-right:4px;">Why:</span>' + fitd.why + '</div>' : '') +
-        (fitd.openingAngle? '<div style="font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.5;"><span style="font-size:9px;font-weight:600;color:#5DCAA5;text-transform:uppercase;letter-spacing:0.08em;margin-right:4px;">Opening angle:</span>' + fitd.openingAngle + '</div>' : '') +
-        (fitdLinks        ? '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:9px;padding-top:9px;border-top:1px solid rgba(93,202,165,0.15);">' + fitdLinks + '</div>' : '') +
-      '</div>';
-    }
-
     // ── Decision Makers section ──────────────────────────
     var roles = [
       { key: 'ownerExec',   label: 'Owner / Exec', color: '#f59e0b', avatarBg: 'rgba(245,158,11,0.15)', avatarBorder: 'rgba(245,158,11,0.3)' },
@@ -18405,7 +18101,7 @@
       }).join('');
     }
 
-    if (emptyEl) emptyEl.style.display = (!contactName && !found.length && !kp.length && !(fitd && fitd.name)) ? 'block' : 'none';
+    if (emptyEl) emptyEl.style.display = (!contactName && !found.length && !kp.length) ? 'block' : 'none';
     listEl.innerHTML = html;
     // Update tab badge
     var peopleBadge = document.getElementById('rtab-people-badge');
